@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "CARRY",
+    "slug": "carry",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "carry",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.carry.mobile"
+    },
+    "android": {
+      "package": "in.carry.mobile"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.roles == ["customer"]
+        && request.resource.data.activePortal == "customer"
+        && request.resource.data.driverVerificationStatus == "not_applied"
+        && request.resource.data.accountStatus == "active";
+
+      allow update: if isOwner(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.roles == resource.data.roles
+        && request.resource.data.accountStatus == resource.data.accountStatus
+        && (
+          request.resource.data.driverVerificationStatus == resource.data.driverVerificationStatus
+          || (
+            resource.data.driverVerificationStatus == "not_applied"
+            && request.resource.data.driverVerificationStatus == "pending"
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            "fullName",
+            "phone",
+            "activePortal",
+            "driverVerificationStatus",
+            "updatedAt"
+          ])
+        && (
+          request.resource.data.activePortal == "customer"
+          || (
+            request.resource.data.activePortal == "driver"
+            && "driver" in resource.data.roles
+            && resource.data.driverVerificationStatus == "approved"
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    match /driverProfiles/{uid} {
+      allow create: if isOwner(uid)
+        && request.resource.data.userId == uid
+        && request.resource.data.verificationStatus == "pending"
+        && request.resource.data.onlineStatus == false
+        && request.resource.data.serviceCity == "Coimbatore";
+
+      allow read: if isOwner(uid);
+
+      // Driver status and verification are admin-controlled.
+      allow update, delete: if false;
+    }
+  }
+}
