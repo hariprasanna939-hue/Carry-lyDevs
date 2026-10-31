@@ -8,10 +8,12 @@
     "scheme": "carry",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.carry.mobile"
+      "bundleIdentifier": "com.carry",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
-      "package": "in.carry.mobile"
+      "package": "com.carry",
+      "googleServicesFile": "./google-services.json"
     }
   }
 }

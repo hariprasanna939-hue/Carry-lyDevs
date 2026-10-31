@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "414107813503",
+    "project_id": "carry-bd2d7",
+    "storage_bucket": "carry-bd2d7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:414107813503:android:051bc84170b1c9317e214a",
+        "android_client_info": {
+          "package_name": "com.carry"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBv7J5a-exJ0Xnur4j9UbMjjPXU3r-PDdo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
