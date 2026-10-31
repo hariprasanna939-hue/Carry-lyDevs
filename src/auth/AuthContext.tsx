@@ -61,7 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Safety timeout: prevents infinite loading if network or auth state stalls
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 2500);
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(timer);
       setFirebaseUser(user);
       try {
         if (user) {
@@ -84,7 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
 
   const register = async (
