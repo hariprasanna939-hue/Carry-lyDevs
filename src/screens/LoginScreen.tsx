@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -50,13 +51,14 @@ export default function LoginScreen({ onRegister }: Props) {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoLetter}>c</Text>
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require("../../assets/logo.png")}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
-        <Text style={styles.logo}>carry</Text>
-        <Text style={styles.tagline}>
-          Move anything. Anywhere.
-        </Text>
+        <Text style={styles.tagline}>Move anything. Anywhere.</Text>
 
         <View style={styles.card}>
           <Text style={styles.heading}>Welcome back</Text>
@@ -119,27 +121,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
   },
-  logoCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
+  logoWrapper: {
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
+    marginBottom: 6,
   },
-  logoLetter: {
-    fontSize: 37,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  logo: {
-    fontSize: 38,
-    fontWeight: "800",
-    color: colors.text,
-    textAlign: "center",
-    marginTop: 12,
-    letterSpacing: -1.5,
+  logoImage: {
+    width: 200,
+    height: 90,
   },
   tagline: {
     fontSize: 14,

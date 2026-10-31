@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -66,7 +67,13 @@ export default function RegisterScreen({ onLogin }: Props) {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.logo}>carry</Text>
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require("../../assets/logo.png")}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
         <Text style={styles.subtitle}>
           Create your CARRY account
         </Text>
@@ -143,11 +150,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
   },
-  logo: {
-    fontSize: 39,
-    fontWeight: "800",
-    color: colors.text,
-    textAlign: "center",
+  logoWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+  },
+  logoImage: {
+    width: 180,
+    height: 80,
   },
   subtitle: {
     fontSize: 14,
