@@ -42,7 +42,7 @@ service cloud.firestore {
           request.resource.data.activePortal == "customer"
           || (
             request.resource.data.activePortal == "driver"
-            && "driver" in resource.data.roles
+            && resource.data.roles.hasAny(["driver"])
             && resource.data.driverVerificationStatus == "approved"
           )
         );
