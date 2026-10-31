@@ -2,8 +2,10 @@ import React from "react";
 import {
   ActivityIndicator,
   Pressable,
+  StyleProp,
   StyleSheet,
   Text,
+  ViewStyle,
 } from "react-native";
 import { colors } from "../theme/colors";
 
@@ -13,6 +15,7 @@ interface Props {
   loading?: boolean;
   disabled?: boolean;
   secondary?: boolean;
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function CarryButton({
@@ -21,6 +24,7 @@ export default function CarryButton({
   loading = false,
   disabled = false,
   secondary = false,
+  style,
 }: Props) {
   return (
     <Pressable
@@ -30,6 +34,7 @@ export default function CarryButton({
         styles.button,
         secondary && styles.secondary,
         (disabled || loading) && styles.disabled,
+        style,
       ]}
     >
       {loading ? (

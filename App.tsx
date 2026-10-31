@@ -7,17 +7,18 @@ import {
   View,
 } from "react-native";
 import { AuthProvider, useCarryAuth } from "./src/auth/AuthContext";
-import LoginScreen from "./src/screens/LoginScreen";
-import RegisterScreen from "./src/screens/RegisterScreen";
-import PortalScreen from "./src/screens/PortalScreen";
 import CustomerHomeScreen from "./src/screens/CustomerHomeScreen";
 import DriverHomeScreen from "./src/screens/DriverHomeScreen";
+import LoginScreen from "./src/screens/LoginScreen";
+import PortalScreen from "./src/screens/PortalScreen";
+import RegisterScreen from "./src/screens/RegisterScreen";
 import { colors } from "./src/theme/colors";
 
 function AppContent() {
   const { firebaseUser, profile, loading } = useCarryAuth();
   const [showRegister, setShowRegister] = useState(false);
   const [showPortalSelector, setShowPortalSelector] = useState(false);
+  const [showAuthScreen, setShowAuthScreen] = useState(false);
 
   if (loading) {
     return (
@@ -28,7 +29,8 @@ function AppContent() {
     );
   }
 
-  if (!firebaseUser) {
+  // If user explicitly chose to sign in or register
+  if (showAuthScreen && !firebaseUser) {
     return showRegister ? (
       <RegisterScreen onLogin={() => setShowRegister(false)} />
     ) : (
@@ -36,19 +38,8 @@ function AppContent() {
     );
   }
 
-  if (!profile) {
-    return (
-      <View style={styles.loading}>
-        <Text style={styles.errorTitle}>Profile unavailable</Text>
-        <Text style={styles.loadingText}>
-          Your account profile could not be loaded. Check your Firestore
-          configuration and security rules.
-        </Text>
-      </View>
-    );
-  }
-
-  if (profile.accountStatus !== "active") {
+  // If signed in but profile has suspended status
+  if (profile && profile.accountStatus !== "active") {
     return (
       <View style={styles.loading}>
         <Text style={styles.errorTitle}>Account unavailable</Text>
@@ -59,15 +50,18 @@ function AppContent() {
     );
   }
 
-  if (showPortalSelector) {
+  // Portal selector view
+  if (showPortalSelector && profile) {
     return <PortalScreen onSelected={() => setShowPortalSelector(false)} />;
   }
 
+  // Driver Portal view (approved drivers only)
   const approvedDriver =
+    profile &&
     profile.roles.includes("driver") &&
     profile.driverVerificationStatus === "approved";
 
-  if (profile.activePortal === "driver" && approvedDriver) {
+  if (profile && profile.activePortal === "driver" && approvedDriver) {
     return (
       <DriverHomeScreen
         onSwitchPortal={() => setShowPortalSelector(true)}
@@ -75,15 +69,19 @@ function AppContent() {
     );
   }
 
-  if (profile.activePortal === "customer") {
-    return (
-      <CustomerHomeScreen
-        onSwitchPortal={() => setShowPortalSelector(true)}
-      />
-    );
-  }
-
-  return <PortalScreen onSelected={() => setShowPortalSelector(false)} />;
+  // Customer Home Screen (works seamlessly for authenticated users and guests)
+  return (
+    <CustomerHomeScreen
+      onSwitchPortal={() => {
+        if (!firebaseUser) {
+          setShowAuthScreen(true);
+        } else {
+          setShowPortalSelector(true);
+        }
+      }}
+      onOpenAuth={() => setShowAuthScreen(true)}
+    />
+  );
 }
 
 export default function App() {
