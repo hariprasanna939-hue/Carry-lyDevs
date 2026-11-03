@@ -16,7 +16,6 @@ import {
   LogOut,
   MapPin,
   Shield,
-  Truck,
   User,
 } from "lucide-react-native";
 import { useCarryAuth } from "../../auth/AuthContext";
@@ -28,10 +27,9 @@ import { colors } from "../../theme/colors";
 
 interface Props {
   onOpenAuth?: () => void;
-  onSwitchPortal?: () => void;
 }
 
-export default function CustomerProfileScreen({ onOpenAuth, onSwitchPortal }: Props) {
+export default function CustomerProfileScreen({ onOpenAuth }: Props) {
   const { profile, firebaseUser, logout } = useCarryAuth();
   const [showSavedAddresses, setShowSavedAddresses] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -167,22 +165,6 @@ export default function CustomerProfileScreen({ onOpenAuth, onSwitchPortal }: Pr
             <ChevronRight size={18} color={colors.secondaryText} />
           </Pressable>
         </CarryCard>
-
-        {/* Switch Portal */}
-        {onSwitchPortal && (
-          <CarryCard style={{ marginTop: 12 }}>
-            <Pressable onPress={onSwitchPortal} style={styles.menuRow}>
-              <View style={styles.menuIconBox}>
-                <Truck size={18} color={colors.primaryBlack} />
-              </View>
-              <View style={styles.menuTextCol}>
-                <Text style={styles.menuLabel}>Switch to Driver Portal</Text>
-                <Text style={styles.menuDesc}>Drive & earn with your mini truck</Text>
-              </View>
-              <ChevronRight size={18} color={colors.secondaryText} />
-            </Pressable>
-          </CarryCard>
-        )}
 
         {/* Logout action */}
         {firebaseUser && (

@@ -57,14 +57,6 @@ export default function DriverProfileScreen() {
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => router.push("/(auth)/choose-portal")}
-          >
-            <Text style={styles.menuLabel}>🔄 Switch to Customer Portal</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuItem}
             onPress={() => router.push("/(shared)/support")}
           >
             <Text style={styles.menuLabel}>🛟 Driver Helpline & SOS</Text>

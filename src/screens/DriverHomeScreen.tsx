@@ -45,9 +45,7 @@ import {
 import { CarryVehicleArt } from "../components/CarryVehicleArt";
 import { colors } from "../theme/colors";
 
-interface Props {
-  onSwitchPortal: () => void;
-}
+interface Props {}
 
 type DriverTab = "home" | "jobs" | "earnings" | "profile";
 type TripStage = "request" | "accepted" | "arrived_pickup" | "in_transit" | "completed";
@@ -101,7 +99,7 @@ const PAST_JOBS: PastJob[] = [
   },
 ];
 
-export default function DriverHomeScreen({ onSwitchPortal }: Props) {
+export default function DriverHomeScreen({}: Props = {}) {
   const { profile, logout } = useCarryAuth();
   const [activeTab, setActiveTab] = useState<DriverTab>("home");
   const [isOnline, setIsOnline] = useState(true);
@@ -657,24 +655,19 @@ export default function DriverHomeScreen({ onSwitchPortal }: Props) {
             ))}
           </CarryCard>
 
-          {/* Portal Switch & Log out */}
+          {/* Log out */}
           <View style={styles.portalActionSection}>
-            <CarryButton onPress={onSwitchPortal} variant="secondary">
-              Switch to Customer Portal
-            </CarryButton>
-
-            <Pressable
+            <CarryButton
               onPress={() => {
                 Alert.alert("Log Out", "Log out of your driver account?", [
                   { text: "Cancel", style: "cancel" },
                   { text: "Log Out", style: "destructive", onPress: () => logout() },
                 ]);
               }}
-              style={styles.driverLogoutBtn}
+              variant="secondary"
             >
-              <LogOut size={16} color={colors.error} />
-              <Text style={styles.driverLogoutText}>Log out of Driver Portal</Text>
-            </Pressable>
+              Log out of Driver Portal
+            </CarryButton>
           </View>
         </ScrollView>
       )}

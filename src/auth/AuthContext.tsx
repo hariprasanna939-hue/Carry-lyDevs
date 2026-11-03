@@ -31,7 +31,8 @@ interface AuthContextType {
     fullName: string,
     email: string,
     password: string,
-    phone: string
+    phone: string,
+    role?: "customer" | "driver"
   ) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -121,7 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullName: string,
     email: string,
     password: string,
-    phone: string
+    phone: string,
+    role: "customer" | "driver" = "customer"
   ) => {
     const credential = await createUserWithEmailAndPassword(
       auth,
@@ -135,8 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fullName: fullName.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
-      roles: ["customer"],
-      activePortal: "customer",
+      roles: [role],
+      activePortal: role,
       driverVerificationStatus: "not_applied",
       accountStatus: "active",
       createdAt: serverTimestamp(),

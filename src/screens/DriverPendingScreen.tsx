@@ -23,7 +23,6 @@ import { CarryButton, CarryCard, CarryStatusTag } from "../components/CarryUI";
 import { colors } from "../theme/colors";
 
 interface Props {
-  onSwitchToCustomer: () => void;
   onLogout: () => void;
 }
 
@@ -33,7 +32,6 @@ interface Props {
  * but has not yet been approved. Prevents access to driver jobs & earnings.
  */
 export default function DriverPendingScreen({
-  onSwitchToCustomer,
   onLogout,
 }: Props) {
   const { profile } = useCarryAuth();
@@ -141,11 +139,7 @@ export default function DriverPendingScreen({
 
         {/* Actions */}
         <View style={styles.actionSection}>
-          <CarryButton onPress={onSwitchToCustomer} variant="primary">
-            Switch to Customer Portal
-          </CarryButton>
-
-          <CarryButton onPress={onLogout} variant="ghost">
+          <CarryButton onPress={onLogout} variant="secondary">
             Log Out of Driver Account
           </CarryButton>
         </View>

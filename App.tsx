@@ -8,7 +8,9 @@ import {
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { doc, getDoc } from "firebase/firestore";
 import { AuthProvider, useCarryAuth } from "./src/auth/AuthContext";
+import { auth, db } from "./src/firebase/firebase";
 import { CarryLogo } from "./src/components/CarryLogo";
 import ChooseRoleScreen from "./src/screens/ChooseRoleScreen";
 import CustomerHomeScreen from "./src/screens/CustomerHomeScreen";
@@ -20,23 +22,24 @@ import CustomerWelcomeScreen from "./src/screens/CustomerWelcomeScreen";
 import DriverForgotPasswordScreen from "./src/screens/DriverForgotPasswordScreen";
 import DriverHomeScreen from "./src/screens/DriverHomeScreen";
 import DriverLoginScreen from "./src/screens/DriverLoginScreen";
+import DriverOnboardingScreen from "./src/screens/DriverOnboardingScreen";
 import DriverPendingScreen from "./src/screens/DriverPendingScreen";
 import DriverRegisterScreen from "./src/screens/DriverRegisterScreen";
 import DriverVerifyOTPScreen from "./src/screens/DriverVerifyOTPScreen";
 import DriverWelcomeScreen from "./src/screens/DriverWelcomeScreen";
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
 import LoginScreen from "./src/screens/LoginScreen";
-import PortalScreen from "./src/screens/PortalScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import {
   completeOnboarding,
   getSelectedRole,
   isOnboardingCompleted,
-  setSelectedRole,
 } from "./src/features/onboarding/onboardingStorage";
+import { driverOnboardingService } from "./src/services/driver-onboarding.service";
+import { CarryUser } from "./src/types/user";
 import { colors } from "./src/theme/colors";
 
-type PortalType = "customer" | "driver" | "portal_select";
+type PortalType = "customer" | "driver";
 
 type ScreenMode =
   // Intro & Role Selection
@@ -57,20 +60,17 @@ type ScreenMode =
   | "driver_register"
   | "driver_forgot"
   | "driver_otp"
+  | "driver_onboarding"
   | "driver_pending"
-  | "driver_home"
-  // Selector
-  | "portal_select";
+  | "driver_home";
 
 export function MainNavigator() {
-  const { firebaseUser, profile, loading, switchPortal, logout } = useCarryAuth();
+  const { firebaseUser, profile, loading, logout } = useCarryAuth();
   const [portal, setPortal] = useState<PortalType>("customer");
   const [screenMode, setScreenMode] = useState<ScreenMode>("splash");
   const [tempDestination, setTempDestination] = useState("+91 98430 21765");
   const [onboardingSlideIndex, setOnboardingSlideIndex] = useState(0);
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<
-    boolean | null
-  >(null);
+  const [, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
   // Read AsyncStorage onboarding and saved role preference on mount
   useEffect(() => {
@@ -79,7 +79,7 @@ export function MainNavigator() {
       ([completed, savedRole]) => {
         if (!isMounted) return;
         setHasCompletedOnboarding(completed);
-        if (savedRole) {
+        if (savedRole === "driver" || savedRole === "customer") {
           setPortal(savedRole);
         }
       }
@@ -91,7 +91,7 @@ export function MainNavigator() {
 
   // Sync initial portal from profile if user is logged in
   useEffect(() => {
-    if (profile?.activePortal) {
+    if (profile?.activePortal === "driver" || profile?.activePortal === "customer") {
       setPortal(profile.activePortal);
     }
   }, [profile?.activePortal]);
@@ -117,18 +117,34 @@ export function MainNavigator() {
     return (
       <CustomerSplashScreen
         onFinish={async () => {
-          // If already signed in, check role and route to home or pending
+          // If already signed in, check role and route to home, pending, or onboarding
           if (firebaseUser) {
-            if (portal === "driver") {
-              if (profile?.driverVerificationStatus === "pending") {
-                setScreenMode("driver_pending");
-              } else {
-                setScreenMode("driver_home");
+            try {
+              const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+              const userData = userDoc.data() as CarryUser | undefined;
+              const roles = userData?.roles || [];
+              const driverStatus = userData?.driverVerificationStatus || "not_applied";
+
+              if (roles.includes("driver")) {
+                setPortal("driver");
+                if (driverStatus === "approved") {
+                  setScreenMode("driver_home");
+                } else if (driverStatus === "pending") {
+                  setScreenMode("driver_pending");
+                } else {
+                  setScreenMode("driver_onboarding");
+                }
+                return;
               }
-            } else {
+
+              // Customer user
+              setPortal("customer");
               setScreenMode("customer_home");
+              return;
+            } catch {
+              setScreenMode("customer_home");
+              return;
             }
-            return;
           }
 
           // First-launch & unauthenticated experience: Splash -> Welcome -> Onboarding
@@ -201,19 +217,6 @@ export function MainNavigator() {
     );
   }
 
-  // Portal Selector (Switching modal / screen)
-  if (screenMode === "portal_select") {
-    return (
-      <PortalScreen
-        onSelectRole={async (role) => {
-          await switchPortal(role);
-          setPortal(role);
-          setScreenMode(role === "driver" ? "driver_home" : "customer_home");
-        }}
-      />
-    );
-  }
-
   // ==========================================================
   // 5. DRIVER FLOW
   // ==========================================================
@@ -223,10 +226,6 @@ export function MainNavigator() {
         <DriverWelcomeScreen
           onGetStarted={() => setScreenMode("driver_register")}
           onLogin={() => setScreenMode("driver_login")}
-          onSwitchPortal={() => {
-            setPortal("customer");
-            setScreenMode("choose_role");
-          }}
         />
       );
     }
@@ -237,38 +236,91 @@ export function MainNavigator() {
           onBack={() => setScreenMode("choose_role")}
           onRegister={() => setScreenMode("driver_register")}
           onForgotPassword={() => setScreenMode("driver_forgot")}
-          onSuccess={() => {
-            // Verify authenticated driver's actual Firestore status
-            if (profile?.driverVerificationStatus === "pending") {
-              setScreenMode("driver_pending");
-            } else if (
-              profile?.roles.includes("driver") &&
-              profile?.driverVerificationStatus === "approved"
-            ) {
-              setScreenMode("driver_home");
-            } else {
-              // Account is customer or has not applied
-              if (profile?.roles.includes("customer")) {
+          onSuccess={async () => {
+            try {
+              const currentUser = auth.currentUser;
+              if (!currentUser) {
+                setScreenMode("choose_role");
+                return;
+              }
+
+              const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+              const data = userDoc.data() as CarryUser | undefined;
+              const roles = data?.roles || [];
+              const driverVerificationStatus =
+                data?.driverVerificationStatus || "not_applied";
+
+              // Check if user is purely a customer with no driver role or application
+              const hasDriverRole = roles.includes("driver");
+              const hasDriverApplication =
+                driverVerificationStatus !== "not_applied";
+
+              if (!hasDriverRole && !hasDriverApplication) {
+                // Deny access: strictly enforce role separation
                 Alert.alert(
-                  "Driver Verification Required",
-                  "You are logged in with a Customer account. To drive with CARRY, submit your vehicle and licence details.",
+                  "Customer Account Detected",
+                  "This account is registered as a Customer account. Customers cannot access the Driver Portal.",
                   [
                     {
-                      text: "Continue as Customer",
-                      onPress: () => {
+                      text: "Go to Customer Login",
+                      onPress: async () => {
+                        await logout();
                         setPortal("customer");
-                        setScreenMode("customer_home");
+                        setScreenMode("customer_login");
                       },
                     },
                     {
-                      text: "View Pending Details",
-                      onPress: () => setScreenMode("driver_pending"),
+                      text: "Cancel",
+                      style: "cancel",
+                      onPress: async () => {
+                        await logout();
+                        setScreenMode("choose_role");
+                      },
+                    },
+                  ]
+                );
+                return;
+              }
+
+              // Approved driver -> Driver Dashboard
+              if (driverVerificationStatus === "approved") {
+                setScreenMode("driver_home");
+                return;
+              }
+
+              // Check driver application in Firestore driverApplications/{uid}
+              const appRecord =
+                await driverOnboardingService.getDriverApplication(
+                  currentUser.uid
+                );
+
+              if (
+                appRecord.status === "SUBMITTED" ||
+                appRecord.status === "UNDER_REVIEW" ||
+                driverVerificationStatus === "pending"
+              ) {
+                setScreenMode("driver_pending");
+              } else if (
+                appRecord.status === "REJECTED" ||
+                driverVerificationStatus === "rejected"
+              ) {
+                Alert.alert(
+                  "Application Needs Attention",
+                  "Your driver application was reviewed and requires updates. Please review your details and re-submit.",
+                  [
+                    {
+                      text: "Update Application",
+                      onPress: () => setScreenMode("driver_onboarding"),
                     },
                   ]
                 );
               } else {
-                setScreenMode("driver_home");
+                // Draft or not completed -> Route to Driver Onboarding wizard!
+                setScreenMode("driver_onboarding");
               }
+            } catch (err) {
+              console.error("Driver login routing error:", err);
+              setScreenMode("driver_onboarding");
             }
           }}
         />
@@ -298,19 +350,30 @@ export function MainNavigator() {
       return (
         <DriverVerifyOTPScreen
           onBack={() => setScreenMode("driver_register")}
-          onSuccess={() => setScreenMode("driver_pending")}
+          onSuccess={() => {
+            // Once OTP is verified for driver registration, route to driver onboarding wizard!
+            setScreenMode("driver_onboarding");
+          }}
         />
       );
     }
 
-    // Driver Pending Verification Screen
+    // Driver 12-Step Onboarding Wizard Screen
+    if (screenMode === "driver_onboarding") {
+      return (
+        <DriverOnboardingScreen
+          onBack={() => setScreenMode("driver_login")}
+          onSubmitted={() => {
+            setScreenMode("driver_pending");
+          }}
+        />
+      );
+    }
+
+    // Driver Pending Verification Screen ("Under Review")
     if (screenMode === "driver_pending") {
       return (
         <DriverPendingScreen
-          onSwitchToCustomer={() => {
-            setPortal("customer");
-            setScreenMode("customer_home");
-          }}
           onLogout={async () => {
             await logout();
             setScreenMode("choose_role");
@@ -320,14 +383,7 @@ export function MainNavigator() {
     }
 
     // Driver Home (4 Tabs: Home, Jobs, Earnings, Profile)
-    return (
-      <DriverHomeScreen
-        onSwitchPortal={() => {
-          setPortal("customer");
-          setScreenMode("customer_home");
-        }}
-      />
-    );
+    return <DriverHomeScreen />;
   }
 
   // ==========================================================
@@ -339,8 +395,50 @@ export function MainNavigator() {
         onBack={() => setScreenMode("choose_role")}
         onRegister={() => setScreenMode("customer_register")}
         onForgotPassword={() => setScreenMode("customer_forgot")}
-        onSuccess={() => {
-          setScreenMode("customer_home");
+        onSuccess={async () => {
+          try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+              setScreenMode("choose_role");
+              return;
+            }
+
+            const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+            const data = userDoc.data() as CarryUser | undefined;
+            const roles = data?.roles || [];
+
+            // If roles includes "customer", proceed to customer home
+            if (roles.includes("customer")) {
+              setPortal("customer");
+              setScreenMode("customer_home");
+            } else {
+              // Deny access: User registered as Driver account only
+              Alert.alert(
+                "Driver Account Detected",
+                "This account is registered as a Driver account. Please use Driver Login to access your driver portal.",
+                [
+                  {
+                    text: "Go to Driver Login",
+                    onPress: async () => {
+                      await logout();
+                      setPortal("driver");
+                      setScreenMode("driver_login");
+                    },
+                  },
+                  {
+                    text: "Cancel",
+                    style: "cancel",
+                    onPress: async () => {
+                      await logout();
+                      setScreenMode("choose_role");
+                    },
+                  },
+                ]
+              );
+            }
+          } catch {
+            setScreenMode("customer_home");
+          }
         }}
       />
     );
@@ -387,14 +485,6 @@ export function MainNavigator() {
   return (
     <CustomerHomeScreen
       onOpenAuth={() => setScreenMode("customer_login")}
-      onSwitchPortal={() => {
-        setPortal("driver");
-        if (profile?.driverVerificationStatus === "pending") {
-          setScreenMode("driver_pending");
-        } else {
-          setScreenMode("driver_home");
-        }
-      }}
     />
   );
 }

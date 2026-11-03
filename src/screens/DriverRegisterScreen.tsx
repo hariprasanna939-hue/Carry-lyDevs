@@ -63,7 +63,7 @@ export default function DriverRegisterScreen({
     setError(null);
     try {
       setLoading(true);
-      await register(fullName.trim(), email.trim(), password, mobile.trim());
+      await register(fullName.trim(), email.trim(), password, mobile.trim(), "driver");
       onSuccess?.();
     } catch (err: any) {
       setError(err?.message || "Registration failed. Try again.");

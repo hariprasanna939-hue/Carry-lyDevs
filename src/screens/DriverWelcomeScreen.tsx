@@ -10,7 +10,6 @@ type Props = {
   onCreate?: () => void;
   onGetStarted?: () => void;
   onLogin: () => void;
-  onSwitchPortal?: () => void;
 };
 
 /**
@@ -21,7 +20,6 @@ export default function DriverWelcomeScreen({
   onCreate,
   onGetStarted,
   onLogin,
-  onSwitchPortal,
 }: Props) {
   const handleCreate = onGetStarted || onCreate || (() => {});
   return (
@@ -73,14 +71,6 @@ export default function DriverWelcomeScreen({
           <CarryButton onPress={onLogin} variant="secondary">
             I already have an account
           </CarryButton>
-
-          {onSwitchPortal && (
-            <Pressable onPress={onSwitchPortal} style={styles.switchButton}>
-              <Text style={styles.switchText}>
-                Booking a vehicle instead? Switch to Customer
-              </Text>
-            </Pressable>
-          )}
         </View>
       </View>
     </View>

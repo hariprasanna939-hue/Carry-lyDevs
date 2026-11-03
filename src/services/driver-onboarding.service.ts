@@ -204,7 +204,7 @@ export const driverOnboardingService = {
 
     // Update users/{uid} collection
     await setDoc(doc(db, "users", uid), {
-      roles: ["customer", "driver"],
+      roles: ["driver"],
       activePortal: "driver",
       driverVerificationStatus: "pending",
       updatedAt: serverTimestamp(),

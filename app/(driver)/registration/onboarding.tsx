@@ -48,7 +48,15 @@ const STEP_TITLES = [
   "Review & Submit",
 ];
 
-export default function DriverOnboardingWizard() {
+export interface DriverOnboardingWizardProps {
+  onBack?: () => void;
+  onSubmitted?: (referenceNumber: string) => void;
+}
+
+export default function DriverOnboardingWizard({
+  onBack,
+  onSubmitted,
+}: DriverOnboardingWizardProps = {}) {
   const router = useRouter();
   const { user } = useAuth();
   const uid = user?.uid || "guest_driver";
@@ -506,7 +514,11 @@ export default function DriverOnboardingWizard() {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
-      router.back();
+      if (onBack) {
+        onBack();
+      } else {
+        router.back();
+      }
     }
   };
 
@@ -531,7 +543,13 @@ export default function DriverOnboardingWizard() {
         [
           {
             text: "View Status Hub",
-            onPress: () => router.replace("/(driver)/registration/status"),
+            onPress: () => {
+              if (onSubmitted) {
+                onSubmitted(submitted.referenceNumber);
+              } else {
+                router.replace("/(driver)/registration/status");
+              }
+            },
           },
         ]
       );
