@@ -1,17 +1,35 @@
+/**
+ * CARRY Design System Theme Colors
+ * Extracted directly from Magic Patterns OS design tokens
+ */
 export const colors = {
-  primary: "#635BFF",
-  primaryDark: "#4E46E5",
-  deepNavy: "#171A2B",
-  background: "#F7F8FC",
+  // Magic Patterns core tokens
+  ink: "#111111",
+  pure: "#000000",
+  paper: "#F7F7F7",
+  card: "#FFFFFF",
+  mist: "#EEEEEE",
+  line: "#E2E2E2",
+  text: "#171717",
+  muted: "#777777",
+  disabled: "#BDBDBD",
+  error: "#E53935",
+  err: "#E53935",
+  danger: "#E53935",
+  success: "#16A34A",
+  warning: "#D97706",
+
+  // Semantic compatibility aliases
+  background: "#F7F7F7",
   surface: "#FFFFFF",
-  text: "#171A2B",
-  secondaryText: "#73788C",
-  border: "#E8EAF1",
-  success: "#16A36A",
-  warning: "#F2A93B",
-  danger: "#E34D59",
-  error: "#E34D59",
-  customerTint: "#F0EFFF",
-  driverTint: "#EAF2FF",
-  adminTint: "#FEF3C7",
-};
+  primary: "#111111",
+  primaryDark: "#000000",
+  secondaryText: "#777777",
+  border: "#E2E2E2",
+  customerTint: "#F0EDFF",
+  driverTint: "#F3F4F6",
+  deepNavy: "#111111",
+  accent: "#111111",
+} as const;
+
+export type ColorKeys = keyof typeof colors;

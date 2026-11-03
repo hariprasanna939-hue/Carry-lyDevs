@@ -7,8 +7,17 @@ import {
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { CheckCircle2, ChevronRight, Clock, ShieldCheck, Truck, User } from "lucide-react-native";
 import { useCarryAuth } from "../auth/AuthContext";
-import CarryButton from "../components/CarryButton";
+import { CarryLogo } from "../components/CarryLogo";
+import {
+  CarryButton,
+  CarryCard,
+  CarryStatusTag,
+  CarryTopBar,
+} from "../components/CarryUI";
+import { CarryVehicleArt } from "../components/CarryVehicleArt";
 import { colors } from "../theme/colors";
 
 interface Props {
@@ -16,12 +25,7 @@ interface Props {
 }
 
 export default function PortalScreen({ onSelected }: Props) {
-  const {
-    profile,
-    switchPortal,
-    applyForDriver,
-    logout,
-  } = useCarryAuth();
+  const { profile, switchPortal, applyForDriver, logout } = useCarryAuth();
   const [loading, setLoading] = useState(false);
 
   if (!profile) return null;
@@ -29,19 +33,15 @@ export default function PortalScreen({ onSelected }: Props) {
   const isApprovedDriver =
     profile.roles.includes("driver") &&
     profile.driverVerificationStatus === "approved";
+  const isPendingDriver = profile.driverVerificationStatus === "pending";
 
   const handleSwitch = async (portal: "customer" | "driver") => {
     try {
       setLoading(true);
       await switchPortal(portal);
-      if (onSelected) {
-        onSelected();
-      }
+      onSelected?.();
     } catch (error: any) {
-      Alert.alert(
-        "Portal unavailable",
-        error?.message || "Please try again."
-      );
+      Alert.alert("Portal Switch", error?.message || "Please try again.");
     } finally {
       setLoading(false);
     }
@@ -52,206 +52,183 @@ export default function PortalScreen({ onSelected }: Props) {
       setLoading(true);
       await applyForDriver();
       Alert.alert(
-        "Application submitted",
-        "Your driver application is now pending verification."
+        "Application Submitted",
+        "Your driver application for Coimbatore is under review."
       );
     } catch (error: any) {
-      Alert.alert(
-        "Application failed",
-        error?.message || "Please try again."
-      );
+      Alert.alert("Application Failed", error?.message || "Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView
-      style={styles.flex}
-      contentContainerStyle={styles.container}
-    >
-      <Text style={styles.brand}>carry</Text>
-      <Text style={styles.greeting}>
-        Hello, {profile.fullName}
-      </Text>
-      <Text style={styles.subtitle}>
-        How would you like to use CARRY today?
-      </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <CarryTopBar
+        title="Choose Portal"
+        subtitle={`Signed in as ${profile.fullName}`}
+        onBack={onSelected}
+      />
 
-      <Pressable
-        style={[styles.portalCard, styles.customerCard]}
-        onPress={() => handleSwitch("customer")}
-        disabled={loading}
-      >
-        <View style={styles.iconBox}>
-          <Text style={styles.icon}>📦</Text>
-        </View>
-        <Text style={styles.cardTitle}>Customer portal</Text>
-        <Text style={styles.cardDescription}>
-          Book a van, move your goods and track your booking.
-        </Text>
-        <Text style={styles.cardAction}>
-          Continue as customer →
-        </Text>
-      </Pressable>
-
-      {isApprovedDriver ? (
-        <Pressable
-          style={[styles.portalCard, styles.driverCard]}
-          onPress={() => handleSwitch("driver")}
-          disabled={loading}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Customer Portal Card */}
+        <CarryCard
+          onPress={() => handleSwitch("customer")}
+          style={[
+            styles.portalCard,
+            profile.activePortal === "customer" && styles.activePortalCard,
+          ]}
         >
-          <View style={styles.iconBox}>
-            <Text style={styles.icon}>🚚</Text>
+          <View style={styles.portalCardHeader}>
+            <View style={styles.portalIconBox}>
+              <User size={22} color={colors.ink} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.portalTitleRow}>
+                <Text style={styles.portalTitle}>Customer Portal</Text>
+                {profile.activePortal === "customer" && (
+                  <CarryStatusTag tone="solid">Active</CarryStatusTag>
+                )}
+              </View>
+              <Text style={styles.portalSub}>
+                Book mini trucks, schedule moves, and track deliveries across Coimbatore.
+              </Text>
+            </View>
           </View>
-          <Text style={styles.cardTitle}>Driver portal</Text>
-          <Text style={styles.cardDescription}>
-            Manage jobs, trips and your earnings.
-          </Text>
-          <Text style={styles.driverAction}>
-            Continue as driver →
-          </Text>
-        </Pressable>
-      ) : (
-        <View style={styles.portalCard}>
-          <Text style={styles.cardTitle}>
-            Become a CARRY driver
-          </Text>
-          {profile.driverVerificationStatus === "pending" ? (
-            <>
-              <Text style={styles.pending}>
-                Application pending verification
-              </Text>
-              <Text style={styles.cardDescription}>
-                Our operations team must verify your details before Driver Portal access is activated.
-              </Text>
-            </>
-          ) : profile.driverVerificationStatus === "rejected" ? (
-            <>
-              <Text style={styles.rejected}>
-                Application needs review
-              </Text>
-              <Text style={styles.cardDescription}>
-                Contact CARRY support for the next steps.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.cardDescription}>
-                Register your vehicle and documents to start receiving delivery requests.
-              </Text>
+        </CarryCard>
+
+        {/* Driver Portal Card */}
+        {isApprovedDriver ? (
+          <CarryCard
+            onPress={() => handleSwitch("driver")}
+            style={[
+              styles.portalCard,
+              profile.activePortal === "driver" && styles.activePortalCard,
+            ]}
+          >
+            <View style={styles.portalCardHeader}>
+              <View style={styles.portalIconBox}>
+                <Truck size={22} color={colors.ink} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.portalTitleRow}>
+                  <Text style={styles.portalTitle}>Driver Portal</Text>
+                  {profile.activePortal === "driver" ? (
+                    <CarryStatusTag tone="solid">Active</CarryStatusTag>
+                  ) : (
+                    <CarryStatusTag tone="outline">Approved</CarryStatusTag>
+                  )}
+                </View>
+                <Text style={styles.portalSub}>
+                  Accept trip requests, view routes, and track daily earnings.
+                </Text>
+              </View>
+            </View>
+          </CarryCard>
+        ) : isPendingDriver ? (
+          <CarryCard style={styles.portalCard}>
+            <View style={styles.portalCardHeader}>
+              <View style={[styles.portalIconBox, { backgroundColor: colors.mist }]}>
+                <Clock size={22} color={colors.muted} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.portalTitleRow}>
+                  <Text style={styles.portalTitle}>Driver Portal</Text>
+                  <CarryStatusTag tone="muted">Verification Pending</CarryStatusTag>
+                </View>
+                <Text style={styles.portalSub}>
+                  Your RC and driving licence documents are being verified by the CARRY team.
+                </Text>
+              </View>
+            </View>
+          </CarryCard>
+        ) : (
+          <CarryCard style={styles.portalCard}>
+            <View style={styles.portalCardHeader}>
+              <View style={[styles.portalIconBox, { backgroundColor: colors.mist }]}>
+                <Truck size={22} color={colors.ink} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.portalTitle}>Drive with CARRY</Text>
+                <Text style={styles.portalSub}>
+                  Earn on your schedule with your mini truck or pickup in Coimbatore.
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ marginTop: 14 }}>
               <CarryButton
-                title="Apply to become a driver"
                 onPress={handleDriverApplication}
+                variant="primary"
                 loading={loading}
-              />
-            </>
-          )}
+              >
+                Apply as Driver
+              </CarryButton>
+            </View>
+          </CarryCard>
+        )}
+
+        <View style={styles.footerActions}>
+          <CarryButton onPress={() => logout()} variant="ghost">
+            Log Out
+          </CarryButton>
         </View>
-      )}
-
-      <Text style={styles.currentPortal}>
-        Current portal: {profile.activePortal}
-      </Text>
-
-      <CarryButton title="Sign out" onPress={logout} secondary />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.paper,
   },
-  container: {
-    padding: 23,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-  brand: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: colors.primary,
-  },
-  greeting: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: colors.text,
-    marginTop: 28,
-  },
-  subtitle: {
-    color: colors.secondaryText,
-    fontSize: 14,
-    marginTop: 8,
-    marginBottom: 25,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
+    gap: 16,
   },
   portalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    padding: 21,
-    marginBottom: 17,
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: colors.line,
   },
-  customerCard: {
-    backgroundColor: "#F8F6FF",
-    borderColor: "#E4DFFF",
+  activePortalCard: {
+    borderColor: colors.ink,
+    borderWidth: 2,
   },
-  driverCard: {
-    backgroundColor: "#F2F7FF",
-    borderColor: "#DCE9FF",
+  portalCardHeader: {
+    flexDirection: "row",
+    gap: 14,
+    alignItems: "flex-start",
   },
-  iconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
+  portalIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.mist,
     alignItems: "center",
-    marginBottom: 16,
+    justifyContent: "center",
   },
-  icon: {
-    fontSize: 25,
+  portalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
   },
-  cardTitle: {
-    color: colors.text,
-    fontSize: 19,
+  portalTitle: {
+    fontSize: 17,
     fontWeight: "800",
+    color: colors.ink,
   },
-  cardDescription: {
+  portalSub: {
     fontSize: 13,
-    color: colors.secondaryText,
-    lineHeight: 20,
-    marginTop: 8,
-    marginBottom: 15,
+    color: colors.muted,
+    lineHeight: 18,
   },
-  cardAction: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: "700",
-  },
-  driverAction: {
-    fontSize: 14,
-    color: "#2563EB",
-    fontWeight: "700",
-  },
-  pending: {
-    color: colors.warning,
-    fontWeight: "700",
-    marginTop: 12,
-  },
-  rejected: {
-    color: colors.danger,
-    fontWeight: "700",
-    marginTop: 12,
-  },
-  currentPortal: {
-    textAlign: "center",
-    color: colors.secondaryText,
-    fontSize: 12,
-    marginTop: 7,
-    marginBottom: 17,
-    textTransform: "capitalize",
+  footerActions: {
+    marginTop: 20,
+    alignItems: "center",
   },
 });

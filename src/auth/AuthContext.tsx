@@ -8,6 +8,7 @@ import React, {
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   User,
@@ -34,6 +35,7 @@ interface AuthContextType {
   ) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
   switchPortal: (portal: ActivePortal) => Promise<void>;
   applyForDriver: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -76,8 +78,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (snapshot.exists()) {
             setProfile(snapshot.data() as CarryUser);
           } else {
-            // Do not silently create a privileged profile.
-            setProfile(null);
+            // Safe recovery: create base customer profile if Firestore doc is missing
+            const baseProfile: CarryUser = {
+              uid: user.uid,
+              name: user.displayName || "Customer",
+              fullName: user.displayName || "Customer",
+              email: user.email || "",
+              phone: user.phoneNumber || "",
+              roles: ["customer"],
+              activePortal: "customer",
+              photoURL: "",
+              driverVerificationStatus: "not_applied",
+              accountStatus: "active",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            try {
+              await setDoc(profileRef, baseProfile);
+              setProfile(baseProfile);
+            } catch {
+              setProfile(null);
+            }
           }
         } else {
           setProfile(null);
@@ -110,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const newProfile: CarryUser = {
       uid: credential.user.uid,
+      name: fullName.trim(),
       fullName: fullName.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
@@ -138,6 +160,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password
     );
     // Auth state listener loads the Firestore profile.
+  };
+
+  const sendPasswordReset = async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
   };
 
   const logout = async () => {
@@ -187,11 +213,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setDoc(doc(db, "driverProfiles", firebaseUser.uid), {
       userId: firebaseUser.uid,
       fullName: profile.fullName,
-      email: profile.email,
+      email: profile.email || "",
       phone: profile.phone,
       verificationStatus: "pending",
       onlineStatus: false,
+      serviceAreas: ["Gandhipuram (Central Hub)", "RS Puram", "Peelamedu & Hopes College"],
       serviceCity: "Coimbatore",
+      rating: 5.0,
+      totalTrips: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -213,6 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         login,
         logout,
+        sendPasswordReset,
         switchPortal,
         applyForDriver,
         refreshProfile,

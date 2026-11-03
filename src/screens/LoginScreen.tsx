@@ -1,192 +1,287 @@
 import React, { useState } from "react";
 import {
-  Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useCarryAuth } from "../auth/AuthContext";
-import CarryButton from "../components/CarryButton";
+import { CarryLogo } from "../components/CarryLogo";
+import { CarryButton, CarryCheck, CarryField } from "../components/CarryUI";
+import ForgotPasswordScreen from "./ForgotPasswordScreen";
 import { colors } from "../theme/colors";
 
 interface Props {
   onRegister: () => void;
+  onSuccess?: () => void;
 }
 
-export default function LoginScreen({ onRegister }: Props) {
+/**
+ * Customer Login Screen faithfully reproduced from Magic Patterns design
+ * Frame ID: e68mTGmeT1QVodDSsLsAEW
+ */
+export default function LoginScreen({ onRegister, onSuccess }: Props) {
   const { login } = useCarryAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  if (showForgotPassword) {
+    return <ForgotPasswordScreen onBack={() => setShowForgotPassword(false)} />;
+  }
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert("Missing details", "Enter your email and password.");
+    if (!identifier.trim() || !password) {
+      setErrorMessage("Enter your email and password.");
       return;
     }
+    setErrorMessage(null);
     try {
       setLoading(true);
-      await login(email, password);
+      await login(identifier.trim(), password);
+      onSuccess?.();
     } catch (error: any) {
-      Alert.alert(
-        "Login failed",
-        error?.message || "Please try again."
-      );
+      const code = error?.code || "";
+      if (
+        code.includes("wrong-password") ||
+        code.includes("invalid-credential") ||
+        code.includes("user-not-found")
+      ) {
+        setErrorMessage(
+          "That password or email doesn’t match. Check it and try again, or reset it below."
+        );
+      } else {
+        setErrorMessage(error?.message || "Failed to log in. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.logoWrapper}>
-          <Image
-            source={require("../../assets/logo.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-        </View>
-        <Text style={styles.tagline}>Move anything. Anywhere.</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
+            <CarryLogo size={32} tone="dark" variant="wheel" />
+            <Text style={styles.heading}>Welcome back</Text>
+            <Text style={styles.subheading}>Log in to book and track your moves.</Text>
+          </View>
 
-        <View style={styles.card}>
-          <Text style={styles.heading}>Welcome back</Text>
-          <Text style={styles.description}>
-            Sign in to continue your journey.
-          </Text>
+          {errorMessage && (
+            <View style={styles.errorAlert}>
+              <View style={styles.errorIcon}>
+                <Text style={styles.errorExclamation}>!</Text>
+              </View>
+              <Text style={styles.errorAlertText}>{errorMessage}</Text>
+            </View>
+          )}
 
-          <Text style={styles.label}>Email address</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="name@example.com"
-            placeholderTextColor="#9A9EAB"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-          />
+          <View style={styles.form}>
+            <CarryField
+              label="Email or mobile number"
+              placeholder="you@example.com or 98XXX XXXXX"
+              value={identifier}
+              onChangeText={(text) => {
+                setIdentifier(text);
+                if (errorMessage) setErrorMessage(null);
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your password"
-            placeholderTextColor="#9A9EAB"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoComplete="password"
-          />
+            <CarryField
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (errorMessage) setErrorMessage(null);
+              }}
+              password
+            />
+
+            <View style={styles.rememberRow}>
+              <CarryCheck
+                checked={remember}
+                onPress={() => setRemember((r) => !r)}
+                label="Remember me"
+              />
+
+              <Pressable
+                onPress={() => setShowForgotPassword(true)}
+                style={styles.forgotButton}
+              >
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.submitWrapper}>
+              <CarryButton
+                onPress={handleLogin}
+                variant="primary"
+                loading={loading}
+              >
+                {loading ? "Logging in…" : "Log in"}
+              </CarryButton>
+            </View>
+          </View>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <CarryButton
-            title="Sign in"
-            onPress={handleLogin}
-            loading={loading}
-          />
+            onPress={() => {
+              // Quick demo / OTP mode helper
+              setIdentifier("customer@carry.app");
+              setPassword("carry-2024");
+            }}
+            variant="secondary"
+          >
+            Quick demo fill (Coimbatore)
+          </CarryButton>
+        </ScrollView>
 
-          <Text style={styles.footer}>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
             New to CARRY?{" "}
-            <Text style={styles.link} onPress={onRegister}>
+            <Text onPress={onRegister} style={styles.footerLink}>
               Create an account
             </Text>
           </Text>
         </View>
-
-        <Text style={styles.location}>
-          Starting in Coimbatore, Tamil Nadu
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.paper,
+  },
   flex: {
     flex: 1,
-    backgroundColor: colors.background,
   },
-  container: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: 24,
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
   },
-  logoWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    marginBottom: 6,
-  },
-  logoImage: {
-    width: 200,
-    height: 90,
-  },
-  tagline: {
-    fontSize: 14,
-    color: colors.secondaryText,
-    textAlign: "center",
-    marginTop: 5,
-    marginBottom: 34,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    padding: 22,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
+  header: {
+    marginBottom: 24,
   },
   heading: {
-    fontSize: 25,
-    fontWeight: "800",
-    color: colors.text,
+    fontSize: 32,
+    fontWeight: "900",
+    color: colors.ink,
+    letterSpacing: -0.9,
+    marginTop: 20,
   },
-  description: {
-    fontSize: 14,
-    color: colors.secondaryText,
-    marginTop: 7,
-    marginBottom: 25,
+  subheading: {
+    fontSize: 16,
+    color: colors.muted,
+    marginTop: 6,
   },
-  label: {
-    color: colors.text,
-    fontWeight: "600",
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  input: {
-    height: 52,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    color: colors.text,
-    fontSize: 15,
-    marginBottom: 19,
+  errorAlert: {
     backgroundColor: "#FFFFFF",
+    borderColor: colors.error,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 20,
+  },
+  errorIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.error,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  errorExclamation: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 12,
+  },
+  errorAlertText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  form: {
+    marginTop: 4,
+  },
+  rememberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginVertical: 4,
+  },
+  forgotButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  forgotText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+    textDecorationLine: "underline",
+  },
+  submitWrapper: {
+    marginTop: 16,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 24,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.line,
+  },
+  dividerText: {
+    fontSize: 13,
+    color: colors.muted,
   },
   footer: {
-    textAlign: "center",
-    marginTop: 22,
-    color: colors.secondaryText,
-    fontSize: 13,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    backgroundColor: "#FFFFFF",
   },
-  link: {
-    color: colors.primary,
-    fontWeight: "700",
+  footerText: {
+    fontSize: 15,
+    color: colors.muted,
   },
-  location: {
-    textAlign: "center",
-    marginTop: 25,
-    color: colors.secondaryText,
-    fontSize: 12,
+  footerLink: {
+    fontWeight: "800",
+    color: colors.text,
+    textDecorationLine: "underline",
   },
 });
