@@ -16,10 +16,10 @@ import {
   Calendar,
   Check,
   Clock,
-  LogOut,
+  Compass,
   MapPin,
   Package,
-  Shield,
+  SlidersHorizontal,
   Truck,
   User,
   Zap,
@@ -34,16 +34,22 @@ import {
   CarryStatusTag,
 } from "../components/CarryUI";
 import { CarryVehicleArt, VehicleCategory } from "../components/CarryVehicleArt";
+import CustomerBookingDetailsModal, {
+  BookingDetailsData,
+} from "./customer/CustomerBookingDetailsModal";
+import CustomerBookingsScreen from "./customer/CustomerBookingsScreen";
+import CustomerNotificationsScreen from "./customer/CustomerNotificationsScreen";
+import CustomerProfileScreen from "./customer/CustomerProfileScreen";
+import CustomerSavedAddressesModal from "./customer/CustomerSavedAddressesModal";
+import CustomerTrackingModal from "./customer/CustomerTrackingModal";
 import { colors } from "../theme/colors";
 
 interface Props {
-  onSwitchPortal: () => void;
   onOpenAuth?: () => void;
 }
 
 type TabType = "home" | "bookings" | "notifications" | "profile";
 type BookingMode = "instant" | "schedule";
-type HelperOption = 0 | 1 | 2;
 
 interface VehicleOption {
   id: string;
@@ -114,11 +120,8 @@ const COIMBATORE_AREAS = [
   "Ukkadam",
 ];
 
-export default function CustomerHomeScreen({
-  onSwitchPortal,
-  onOpenAuth,
-}: Props) {
-  const { profile, firebaseUser, logout } = useCarryAuth();
+export default function CustomerHomeScreen({ onOpenAuth }: Props) {
+  const { profile, firebaseUser } = useCarryAuth();
   const [activeTab, setActiveTab] = useState<TabType>("home");
 
   // Booking Flow State
@@ -129,13 +132,34 @@ export default function CustomerHomeScreen({
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleOption>(
     VEHICLES[0]
   );
-  const [helperCount, setHelperCount] = useState<HelperOption>(1);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  // Helper fee calculation (in paise)
+  // Modal controls
+  const [showBookingDetailsModal, setShowBookingDetailsModal] = useState(false);
+  const [showSavedAddressesModal, setShowSavedAddressesModal] = useState(false);
+  const [addressTarget, setAddressTarget] = useState<"pickup" | "drop">("pickup");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSearchingDriver, setIsSearchingDriver] = useState(false);
+  const [activeTrackingBooking, setActiveTrackingBooking] = useState<any | null>(null);
+
+  // Booking Details configuration
+  const [bookingDetails, setBookingDetails] = useState<BookingDetailsData>({
+    category: "Furniture & Home",
+    pickupFloor: 0,
+    pickupLift: true,
+    dropFloor: 1,
+    dropLift: true,
+    helpers: 1,
+    instructions: "Please handle cartons with care",
+  });
+
+  // Helper fee calculation (paise)
   const helperFeePaise =
-    helperCount === 1 ? 25000 : helperCount === 2 ? 45000 : 0;
+    bookingDetails.helpers === 1
+      ? 25000
+      : bookingDetails.helpers === 2
+      ? 45000
+      : 0;
+
   // Estimated 8 km journey for Coimbatore
   const estimatedKm = 8;
   const distanceFarePaise = estimatedKm * selectedVehicle.ratePerKmPaise;
@@ -158,26 +182,62 @@ export default function CustomerHomeScreen({
     setDropAddress(temp);
   };
 
-  const handleConfirmBooking = () => {
-    if (!firebaseUser && onOpenAuth) {
-      setShowConfirmModal(false);
-      onOpenAuth();
+  const handleOpenSavedAddresses = (target: "pickup" | "drop") => {
+    setAddressTarget(target);
+    setShowSavedAddressesModal(true);
+  };
+
+  const handleSelectSavedAddress = (addrText: string) => {
+    if (addressTarget === "pickup") {
+      setPickupAddress(addrText);
+    } else {
+      setDropAddress(addrText);
+    }
+  };
+
+  const handleConfirmAndSearch = () => {
+    if (!pickupAddress.trim() || !dropAddress.trim()) {
+      Alert.alert("Locations required", "Please enter both pickup and drop addresses.");
       return;
     }
+
     setShowConfirmModal(false);
-    setBookingSuccess(true);
+    setIsSearchingDriver(true);
+
+    // Simulate matching driver in Coimbatore
+    setTimeout(() => {
+      setIsSearchingDriver(false);
+      setActiveTrackingBooking({
+        id: `CRY-${Math.floor(10000 + Math.random() * 90000)}`,
+        pickup: pickupAddress,
+        drop: dropAddress,
+        vehicleName: selectedVehicle.name,
+        totalFare: formatINR(totalFarePaise),
+        status: "Driver Assigned",
+        helperCount: bookingDetails.helpers,
+      });
+    }, 2000);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Top App Header matching Magic Patterns */}
+      {/* Top Header */}
       <View style={styles.header}>
         <CarryLogo size={26} tone="dark" variant="wheel" />
 
         <View style={styles.headerRight}>
-          <Pressable onPress={onSwitchPortal} style={styles.portalToggle}>
-            <Truck size={14} color={colors.ink} />
-            <Text style={styles.portalToggleText}>Driver Portal</Text>
+          <Pressable
+            onPress={() => setActiveTab("notifications")}
+            style={styles.headerIconBtn}
+          >
+            <Bell size={18} color={colors.primaryBlack} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setActiveTab("profile")}
+            style={styles.avatarPill}
+          >
+            <User size={16} color={colors.white} />
           </Pressable>
         </View>
       </View>
@@ -189,330 +249,249 @@ export default function CustomerHomeScreen({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {bookingSuccess ? (
-            <View style={styles.successCard}>
-              <View style={styles.successIconBox}>
-                <Check size={28} color="#FFFFFF" strokeWidth={3} />
-              </View>
-              <Text style={styles.successHeading}>Booking Confirmed!</Text>
-              <Text style={styles.successSub}>
-                A {selectedVehicle.name} driver in Coimbatore has been assigned to your move.
-              </Text>
-
-              <View style={styles.confirmedDetails}>
-                <View style={styles.confirmedRow}>
-                  <Text style={styles.confirmedLabel}>Pickup</Text>
-                  <Text style={styles.confirmedVal}>{pickupAddress}</Text>
-                </View>
-                <View style={styles.confirmedRow}>
-                  <Text style={styles.confirmedLabel}>Drop</Text>
-                  <Text style={styles.confirmedVal}>{dropAddress}</Text>
-                </View>
-                <View style={styles.confirmedRow}>
-                  <Text style={styles.confirmedLabel}>Total Fare</Text>
-                  <Text style={styles.confirmedFare}>{formatINR(totalFarePaise)}</Text>
-                </View>
-              </View>
-
-              <CarryButton
-                onPress={() => setBookingSuccess(false)}
-                variant="primary"
+          {/* Instant vs Schedule Toggle */}
+          <View style={styles.modeToggle}>
+            <Pressable
+              onPress={() => setBookingMode("instant")}
+              style={[
+                styles.modeBtn,
+                bookingMode === "instant" && styles.modeBtnActive,
+              ]}
+            >
+              <Zap
+                size={14}
+                color={
+                  bookingMode === "instant" ? colors.white : colors.secondaryText
+                }
+              />
+              <Text
+                style={[
+                  styles.modeBtnText,
+                  bookingMode === "instant" && styles.modeBtnTextActive,
+                ]}
               >
-                Book Another Move
-              </CarryButton>
-            </View>
-          ) : (
-            <>
-              {/* Instant vs Schedule Toggle */}
-              <View style={styles.modeToggle}>
-                <Pressable
-                  onPress={() => setBookingMode("instant")}
-                  style={[
-                    styles.modeBtn,
-                    bookingMode === "instant" && styles.modeBtnActive,
-                  ]}
-                >
-                  <Zap
-                    size={15}
-                    color={bookingMode === "instant" ? "#FFFFFF" : colors.muted}
-                  />
-                  <Text
-                    style={[
-                      styles.modeBtnText,
-                      bookingMode === "instant" && styles.modeBtnTextActive,
-                    ]}
-                  >
-                    Move Now
-                  </Text>
-                </Pressable>
+                Instant Move
+              </Text>
+            </Pressable>
 
-                <Pressable
-                  onPress={() => setBookingMode("schedule")}
-                  style={[
-                    styles.modeBtn,
-                    bookingMode === "schedule" && styles.modeBtnActive,
-                  ]}
-                >
-                  <Clock
-                    size={15}
-                    color={bookingMode === "schedule" ? "#FFFFFF" : colors.muted}
-                  />
-                  <Text
-                    style={[
-                      styles.modeBtnText,
-                      bookingMode === "schedule" && styles.modeBtnTextActive,
-                    ]}
-                  >
-                    Schedule
-                  </Text>
-                </Pressable>
+            <Pressable
+              onPress={() => setBookingMode("schedule")}
+              style={[
+                styles.modeBtn,
+                bookingMode === "schedule" && styles.modeBtnActive,
+              ]}
+            >
+              <Clock
+                size={14}
+                color={
+                  bookingMode === "schedule"
+                    ? colors.white
+                    : colors.secondaryText
+                }
+              />
+              <Text
+                style={[
+                  styles.modeBtnText,
+                  bookingMode === "schedule" && styles.modeBtnTextActive,
+                ]}
+              >
+                Schedule Move
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Location Entry Card */}
+          <CarryCard style={styles.locationCard}>
+            <View style={styles.locationInputRow}>
+              <View style={styles.pinCircleBlack}>
+                <View style={styles.innerDotWhite} />
               </View>
-
-              {/* Pickup & Drop Location Card */}
-              <CarryCard style={styles.locationCard}>
-                <View style={styles.locationInputRow}>
-                  <View style={styles.pinCircleGreen}>
-                    <View style={styles.innerDotGreen} />
-                  </View>
-                  <View style={styles.locationInputWrapper}>
-                    <Text style={styles.locationLabel}>PICKUP LOCATION</Text>
-                    <TextInput
-                      style={styles.locationInput}
-                      value={pickupAddress}
-                      onChangeText={setPickupAddress}
-                      placeholder="Enter pickup address in Coimbatore"
-                      placeholderTextColor={colors.disabled}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.locationDividerRow}>
-                  <View style={styles.connectorLine} />
+              <View style={styles.locationInputWrapper}>
+                <View style={styles.locationLabelRow}>
+                  <Text style={styles.locationLabel}>PICKUP LOCATION</Text>
                   <Pressable
-                    onPress={handleSwapAddresses}
-                    style={styles.swapBtn}
+                    onPress={() => handleOpenSavedAddresses("pickup")}
+                    style={styles.savedAddrBtn}
                   >
-                    <ArrowUpDown size={14} color={colors.ink} />
+                    <Text style={styles.savedAddrText}>Saved Addresses</Text>
                   </Pressable>
                 </View>
+                <TextInput
+                  style={styles.locationInput}
+                  value={pickupAddress}
+                  onChangeText={setPickupAddress}
+                  placeholder="Enter pickup address in Coimbatore"
+                  placeholderTextColor={colors.disabledGrey}
+                />
+              </View>
+            </View>
 
-                <View style={styles.locationInputRow}>
-                  <View style={styles.pinCircleBlack}>
-                    <View style={styles.innerSquareWhite} />
-                  </View>
-                  <View style={styles.locationInputWrapper}>
-                    <Text style={styles.locationLabel}>DROP DESTINATION</Text>
-                    <TextInput
-                      style={styles.locationInput}
-                      value={dropAddress}
-                      onChangeText={setDropAddress}
-                      placeholder="Enter drop address in Coimbatore"
-                      placeholderTextColor={colors.disabled}
-                    />
-                  </View>
-                </View>
-              </CarryCard>
-
-              {/* Quick Area Chips */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.areasScroll}
-                contentContainerStyle={styles.areasContent}
+            <View style={styles.locationDividerRow}>
+              <View style={styles.connectorLine} />
+              <Pressable
+                onPress={handleSwapAddresses}
+                style={styles.swapBtn}
               >
-                {COIMBATORE_AREAS.map((area) => (
-                  <CarryChip
-                    key={area}
-                    label={area}
-                    onPress={() => handleQuickAreaSelect(area)}
-                  />
-                ))}
-              </ScrollView>
+                <ArrowUpDown size={14} color={colors.primaryBlack} />
+              </Pressable>
+            </View>
 
-              {/* Vector Map Preview */}
-              <View style={styles.mapContainer}>
-                <CarryMapPreview height={140} showRoute />
+            <View style={styles.locationInputRow}>
+              <View style={styles.pinCircleBlack}>
+                <View style={styles.innerSquareWhite} />
               </View>
-
-              {/* Vehicle Selection Section */}
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Choose Vehicle</Text>
-                <Text style={styles.sectionSub}>All prices upfront</Text>
+              <View style={styles.locationInputWrapper}>
+                <View style={styles.locationLabelRow}>
+                  <Text style={styles.locationLabel}>DROP DESTINATION</Text>
+                  <Pressable
+                    onPress={() => handleOpenSavedAddresses("drop")}
+                    style={styles.savedAddrBtn}
+                  >
+                    <Text style={styles.savedAddrText}>Saved Addresses</Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  style={styles.locationInput}
+                  value={dropAddress}
+                  onChangeText={setDropAddress}
+                  placeholder="Enter drop address in Coimbatore"
+                  placeholderTextColor={colors.disabledGrey}
+                />
               </View>
+            </View>
+          </CarryCard>
 
-              <View style={styles.vehiclesGrid}>
-                {VEHICLES.map((v) => {
-                  const isSelected = selectedVehicle.id === v.id;
-                  const estimatedPaise =
-                    v.baseFarePaise + estimatedKm * v.ratePerKmPaise + helperFeePaise;
+          {/* Quick Coimbatore Area Chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.areasScroll}
+            contentContainerStyle={styles.areasContent}
+          >
+            {COIMBATORE_AREAS.map((area) => (
+              <CarryChip
+                key={area}
+                label={area}
+                onPress={() => handleQuickAreaSelect(area)}
+              />
+            ))}
+          </ScrollView>
 
-                  return (
-                    <CarryCard
-                      key={v.id}
-                      onPress={() => setSelectedVehicle(v)}
-                      style={[
-                        styles.vehicleCard,
-                        isSelected && styles.vehicleCardSelected,
-                      ]}
-                    >
-                      <View style={styles.vehicleArtWrapper}>
-                        <CarryVehicleArt type={v.category} width={100} />
-                      </View>
+          {/* Route Map Preview */}
+          <View style={styles.mapContainer}>
+            <CarryMapPreview height={140} showRoute />
+          </View>
 
-                      <View style={styles.vehicleInfo}>
-                        <View style={styles.vehicleNameRow}>
-                          <Text style={styles.vehicleName}>{v.name}</Text>
-                          <Text style={styles.vehiclePrice}>
-                            {formatINR(estimatedPaise)}
-                          </Text>
-                        </View>
+          {/* Vehicle Selection Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Choose Vehicle</Text>
+            <Text style={styles.sectionSub}>Upfront prices, no surge</Text>
+          </View>
 
-                        <Text style={styles.vehicleSpecs}>
-                          {v.capacity} • {v.size} • ~{v.etaMinutes} min away
-                        </Text>
-                        <Text style={styles.vehicleBestFor}>{v.bestFor}</Text>
-                      </View>
-                    </CarryCard>
-                  );
-                })}
-              </View>
+          <View style={styles.vehiclesGrid}>
+            {VEHICLES.map((v) => {
+              const isSelected = selectedVehicle.id === v.id;
+              const estimatedPaise =
+                v.baseFarePaise + estimatedKm * v.ratePerKmPaise + helperFeePaise;
 
-              {/* Helpers Selection Card */}
-              <CarryCard style={styles.helpersCard}>
-                <Text style={styles.helpersTitle}>Loading & Unloading Helpers</Text>
-                <Text style={styles.helpersDesc}>
-                  Helpers assist with moving heavy cartons, furniture, and stairs.
-                </Text>
-
-                <View style={styles.helpersOptionsRow}>
-                  {[
-                    { count: 0, label: "Driver Only", extra: "Free" },
-                    { count: 1, label: "+1 Helper", extra: "+₹250" },
-                    { count: 2, label: "+2 Helpers", extra: "+₹450" },
-                  ].map((opt) => {
-                    const active = helperCount === opt.count;
-                    return (
-                      <Pressable
-                        key={opt.count}
-                        onPress={() => setHelperCount(opt.count as HelperOption)}
-                        style={[
-                          styles.helperOption,
-                          active && styles.helperOptionActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.helperOptLabel,
-                            active && styles.helperOptLabelActive,
-                          ]}
-                        >
-                          {opt.label}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.helperOptExtra,
-                            active && styles.helperOptExtraActive,
-                          ]}
-                        >
-                          {opt.extra}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </CarryCard>
-
-              {/* Fare Breakdown Card */}
-              <CarryCard style={styles.fareCard}>
-                <View style={styles.fareRow}>
-                  <Text style={styles.fareLabel}>Base Fare ({selectedVehicle.name})</Text>
-                  <Text style={styles.fareValue}>
-                    {formatINR(selectedVehicle.baseFarePaise)}
-                  </Text>
-                </View>
-                <View style={styles.fareRow}>
-                  <Text style={styles.fareLabel}>Estimated Distance (~{estimatedKm} km)</Text>
-                  <Text style={styles.fareValue}>{formatINR(distanceFarePaise)}</Text>
-                </View>
-                {helperCount > 0 && (
-                  <View style={styles.fareRow}>
-                    <Text style={styles.fareLabel}>
-                      {helperCount} Helper{helperCount > 1 ? "s" : ""}
-                    </Text>
-                    <Text style={styles.fareValue}>{formatINR(helperFeePaise)}</Text>
+              return (
+                <CarryCard
+                  key={v.id}
+                  onPress={() => setSelectedVehicle(v)}
+                  style={[
+                    styles.vehicleCard,
+                    isSelected && styles.vehicleCardSelected,
+                  ]}
+                >
+                  <View style={styles.vehicleArtWrapper}>
+                    <CarryVehicleArt type={v.category} width={90} />
                   </View>
-                )}
-                <View style={[styles.fareRow, styles.fareTotalRow]}>
-                  <Text style={styles.totalLabel}>Estimated Total</Text>
-                  <Text style={styles.totalValue}>{formatINR(totalFarePaise)}</Text>
-                </View>
-              </CarryCard>
-            </>
-          )}
+
+                  <View style={styles.vehicleInfo}>
+                    <View style={styles.vehicleNameRow}>
+                      <Text style={styles.vehicleName}>{v.name}</Text>
+                      <Text style={styles.vehiclePrice}>
+                        {formatINR(estimatedPaise)}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.vehicleSpecs}>
+                      {v.capacity} • {v.size} • ~{v.etaMinutes} min away
+                    </Text>
+                    <Text style={styles.vehicleBestFor}>{v.bestFor}</Text>
+                  </View>
+                </CarryCard>
+              );
+            })}
+          </View>
+
+          {/* Move & Helpers Configuration Card */}
+          <CarryCard
+            onPress={() => setShowBookingDetailsModal(true)}
+            style={styles.detailsConfigCard}
+          >
+            <View style={styles.detailsConfigRow}>
+              <View style={styles.detailsIconCircle}>
+                <SlidersHorizontal size={18} color={colors.primaryBlack} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.detailsConfigTitle}>
+                  Move Details & Helpers
+                </Text>
+                <Text style={styles.detailsConfigSub}>
+                  {bookingDetails.category} •{" "}
+                  {bookingDetails.helpers === 0
+                    ? "Driver only"
+                    : `${bookingDetails.helpers} Helper`}
+                  {" • "}
+                  {bookingDetails.pickupLift ? "Lift available" : "Stairs"}
+                </Text>
+              </View>
+              <CarryStatusTag tone="outline">Configure</CarryStatusTag>
+            </View>
+          </CarryCard>
+
+          {/* Transparent Upfront Fare Summary */}
+          <CarryCard style={styles.fareCard}>
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Base Fare ({selectedVehicle.name})</Text>
+              <Text style={styles.fareValue}>
+                {formatINR(selectedVehicle.baseFarePaise)}
+              </Text>
+            </View>
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Estimated Distance (~{estimatedKm} km)</Text>
+              <Text style={styles.fareValue}>{formatINR(distanceFarePaise)}</Text>
+            </View>
+            {bookingDetails.helpers > 0 && (
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>
+                  {bookingDetails.helpers} Helper{bookingDetails.helpers > 1 ? "s" : ""}
+                </Text>
+                <Text style={styles.fareValue}>{formatINR(helperFeePaise)}</Text>
+              </View>
+            )}
+            <View style={[styles.fareRow, styles.fareTotalRow]}>
+              <Text style={styles.totalLabel}>Total Estimated Fare</Text>
+              <Text style={styles.totalValue}>{formatINR(totalFarePaise)}</Text>
+            </View>
+          </CarryCard>
         </ScrollView>
       )}
 
       {/* Bookings Tab */}
-      {activeTab === "bookings" && (
-        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.pageTitle}>My Moves</Text>
-          <Text style={styles.pageSub}>Active and past deliveries in Coimbatore</Text>
+      {activeTab === "bookings" && <CustomerBookingsScreen />}
 
-          <CarryCard style={styles.bookingItem}>
-            <View style={styles.bookingItemHeader}>
-              <CarryStatusTag tone="solid">In Progress</CarryStatusTag>
-              <Text style={styles.bookingItemFare}>₹393</Text>
-            </View>
-            <View style={styles.bookingTripRow}>
-              <View style={styles.pinCircleBlack}>
-                <View style={styles.innerDotWhite} />
-              </View>
-              <Text style={styles.bookingAddr}>Gandhipuram Cross Cut Rd</Text>
-            </View>
-            <View style={styles.bookingTripRow}>
-              <View style={styles.pinCircleBlack}>
-                <View style={styles.innerSquareWhite} />
-              </View>
-              <Text style={styles.bookingAddr}>Peelamedu, Avinashi Rd</Text>
-            </View>
-            <Text style={styles.bookingVehicleInfo}>
-              Mini Truck • Tata Ace (TN 38 CD 4821)
-            </Text>
-          </CarryCard>
-        </ScrollView>
-      )}
+      {/* Notifications Tab */}
+      {activeTab === "notifications" && <CustomerNotificationsScreen />}
 
       {/* Profile Tab */}
       {activeTab === "profile" && (
-        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.pageTitle}>Profile</Text>
-          <CarryCard style={styles.profileCard}>
-            <View style={styles.profileAvatar}>
-              <Text style={styles.avatarText}>
-                {profile?.fullName ? profile.fullName.charAt(0).toUpperCase() : "C"}
-              </Text>
-            </View>
-            <Text style={styles.profileName}>{profile?.fullName || "Guest Customer"}</Text>
-            <Text style={styles.profilePhone}>{profile?.phone || "+91 98430 21765"}</Text>
-            <Text style={styles.profileEmail}>{profile?.email || "customer@carry.app"}</Text>
-          </CarryCard>
-
-          <CarryCard style={{ marginTop: 16 }}>
-            <Pressable onPress={onSwitchPortal} style={styles.menuRow}>
-              <Truck size={20} color={colors.ink} />
-              <Text style={styles.menuText}>Switch to Driver Portal</Text>
-            </Pressable>
-            <View style={styles.menuDivider} />
-            <Pressable onPress={() => logout()} style={styles.menuRow}>
-              <LogOut size={20} color={colors.error} />
-              <Text style={[styles.menuText, { color: colors.error }]}>Log out</Text>
-            </Pressable>
-          </CarryCard>
-        </ScrollView>
+        <CustomerProfileScreen onOpenAuth={onOpenAuth} />
       )}
 
-      {/* Sticky Bottom Action Bar on Home */}
-      {activeTab === "home" && !bookingSuccess && (
+      {/* Bottom Action Bar on Home Tab */}
+      {activeTab === "home" && (
         <View style={styles.bottomBar}>
           <CarryButton
             onPress={() => setShowConfirmModal(true)}
@@ -525,7 +504,7 @@ export default function CustomerHomeScreen({
         </View>
       )}
 
-      {/* Bottom Navigation Tabs */}
+      {/* Fixed Customer Bottom Navigation */}
       <View style={styles.navBar}>
         <Pressable
           onPress={() => setActiveTab("home")}
@@ -533,7 +512,11 @@ export default function CustomerHomeScreen({
         >
           <Truck
             size={22}
-            color={activeTab === "home" ? colors.ink : colors.disabled}
+            color={
+              activeTab === "home"
+                ? colors.primaryBlack
+                : colors.disabledGrey
+            }
           />
           <Text
             style={[
@@ -541,8 +524,9 @@ export default function CustomerHomeScreen({
               activeTab === "home" && styles.navTextActive,
             ]}
           >
-            Book
+            Home
           </Text>
+          {activeTab === "home" && <View style={styles.activeTabIndicator} />}
         </Pressable>
 
         <Pressable
@@ -551,7 +535,11 @@ export default function CustomerHomeScreen({
         >
           <Package
             size={22}
-            color={activeTab === "bookings" ? colors.ink : colors.disabled}
+            color={
+              activeTab === "bookings"
+                ? colors.primaryBlack
+                : colors.disabledGrey
+            }
           />
           <Text
             style={[
@@ -559,8 +547,36 @@ export default function CustomerHomeScreen({
               activeTab === "bookings" && styles.navTextActive,
             ]}
           >
-            Trips
+            Bookings
           </Text>
+          {activeTab === "bookings" && (
+            <View style={styles.activeTabIndicator} />
+          )}
+        </Pressable>
+
+        <Pressable
+          onPress={() => setActiveTab("notifications")}
+          style={styles.navItem}
+        >
+          <Bell
+            size={22}
+            color={
+              activeTab === "notifications"
+                ? colors.primaryBlack
+                : colors.disabledGrey
+            }
+          />
+          <Text
+            style={[
+              styles.navText,
+              activeTab === "notifications" && styles.navTextActive,
+            ]}
+          >
+            Notifications
+          </Text>
+          {activeTab === "notifications" && (
+            <View style={styles.activeTabIndicator} />
+          )}
         </Pressable>
 
         <Pressable
@@ -569,7 +585,11 @@ export default function CustomerHomeScreen({
         >
           <User
             size={22}
-            color={activeTab === "profile" ? colors.ink : colors.disabled}
+            color={
+              activeTab === "profile"
+                ? colors.primaryBlack
+                : colors.disabledGrey
+            }
           />
           <Text
             style={[
@@ -577,12 +597,15 @@ export default function CustomerHomeScreen({
               activeTab === "profile" && styles.navTextActive,
             ]}
           >
-            Account
+            Profile
           </Text>
+          {activeTab === "profile" && (
+            <View style={styles.activeTabIndicator} />
+          )}
         </Pressable>
       </View>
 
-      {/* Confirmation Modal */}
+      {/* Booking Review & Confirmation Sheet */}
       <Modal
         visible={showConfirmModal}
         transparent
@@ -594,7 +617,7 @@ export default function CustomerHomeScreen({
             <View style={styles.modalGrabber} />
             <Text style={styles.modalTitle}>Confirm your move</Text>
             <Text style={styles.modalSub}>
-              Review the details before we assign a Coimbatore driver.
+              Review your details before we dispatch a Coimbatore driver.
             </Text>
 
             <View style={styles.modalSummary}>
@@ -613,17 +636,19 @@ export default function CustomerHomeScreen({
               <View style={styles.modalRow}>
                 <Text style={styles.modalLabel}>Helpers</Text>
                 <Text style={styles.modalVal}>
-                  {helperCount === 0 ? "Driver only" : `${helperCount} Helper`}
+                  {bookingDetails.helpers === 0
+                    ? "Driver only"
+                    : `${bookingDetails.helpers} Helper`}
                 </Text>
               </View>
               <View style={[styles.modalRow, styles.modalTotal]}>
-                <Text style={styles.modalTotalLabel}>Total Pay</Text>
+                <Text style={styles.modalTotalLabel}>Total Fare</Text>
                 <Text style={styles.modalTotalVal}>{formatINR(totalFarePaise)}</Text>
               </View>
             </View>
 
             <View style={styles.modalButtons}>
-              <CarryButton onPress={handleConfirmBooking} variant="primary">
+              <CarryButton onPress={handleConfirmAndSearch} variant="primary">
                 Confirm & Request Driver
               </CarryButton>
               <CarryButton
@@ -636,6 +661,45 @@ export default function CustomerHomeScreen({
           </View>
         </View>
       </Modal>
+
+      {/* Searching for Driver Simulation Overlay */}
+      <Modal visible={isSearchingDriver} transparent animationType="fade">
+        <View style={styles.searchingOverlay}>
+          <View style={styles.searchingBox}>
+            <View style={styles.searchingArt}>
+              <CarryVehicleArt type={selectedVehicle.category} width={100} />
+            </View>
+            <Text style={styles.searchingTitle}>Searching for nearby drivers…</Text>
+            <Text style={styles.searchingSub}>
+              Contacting verified partners near {pickupAddress.split(",")[0]}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Move Details Modal */}
+      <CustomerBookingDetailsModal
+        visible={showBookingDetailsModal}
+        onClose={() => setShowBookingDetailsModal(false)}
+        initialData={bookingDetails}
+        onProceed={setBookingDetails}
+      />
+
+      {/* Saved Addresses Modal */}
+      <CustomerSavedAddressesModal
+        visible={showSavedAddressesModal}
+        onClose={() => setShowSavedAddressesModal(false)}
+        onSelectAddress={handleSelectSavedAddress}
+      />
+
+      {/* Live Move Tracking Modal */}
+      {activeTrackingBooking && (
+        <CustomerTrackingModal
+          visible={!!activeTrackingBooking}
+          onClose={() => setActiveTrackingBooking(null)}
+          booking={activeTrackingBooking}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -643,7 +707,7 @@ export default function CustomerHomeScreen({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: "row",
@@ -652,28 +716,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-    backgroundColor: "#FFFFFF",
+    borderBottomColor: colors.borderGrey,
+    backgroundColor: colors.cardSurface,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
-  portalToggle: {
-    flexDirection: "row",
+  headerIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.lightGrey,
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 99,
-    backgroundColor: colors.mist,
-    borderWidth: 1,
-    borderColor: colors.line,
+    justifyContent: "center",
   },
-  portalToggleText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.ink,
+  avatarPill: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primaryBlack,
+    alignItems: "center",
+    justifyContent: "center",
   },
   container: {
     flex: 1,
@@ -685,7 +750,7 @@ const styles = StyleSheet.create({
   },
   modeToggle: {
     flexDirection: "row",
-    backgroundColor: colors.mist,
+    backgroundColor: colors.lightGrey,
     borderRadius: 14,
     padding: 3,
     marginBottom: 16,
@@ -700,15 +765,15 @@ const styles = StyleSheet.create({
     borderRadius: 11,
   },
   modeBtnActive: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.primaryBlack,
   },
   modeBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   modeBtnTextActive: {
-    color: "#FFFFFF",
+    color: colors.white,
   },
   locationCard: {
     padding: 16,
@@ -721,53 +786,51 @@ const styles = StyleSheet.create({
   locationInputWrapper: {
     flex: 1,
   },
+  locationLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   locationLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    color: colors.secondaryText,
     letterSpacing: 0.5,
   },
+  savedAddrBtn: {
+    paddingHorizontal: 4,
+  },
+  savedAddrText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.primaryBlack,
+    textDecorationLine: "underline",
+  },
   locationInput: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
-    color: colors.text,
+    color: colors.mainText,
     paddingVertical: 4,
-  },
-  pinCircleGreen: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#E6F4EA",
-    borderWidth: 2,
-    borderColor: colors.success,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  innerDotGreen: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success,
   },
   pinCircleBlack: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.primaryBlack,
     alignItems: "center",
     justifyContent: "center",
-  },
-  innerSquareWhite: {
-    width: 7,
-    height: 7,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 1.5,
   },
   innerDotWhite: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.white,
+  },
+  innerSquareWhite: {
+    width: 7,
+    height: 7,
+    backgroundColor: colors.white,
+    borderRadius: 1.5,
   },
   locationDividerRow: {
     flexDirection: "row",
@@ -778,14 +841,14 @@ const styles = StyleSheet.create({
   connectorLine: {
     width: 2,
     height: 20,
-    backgroundColor: colors.line,
+    backgroundColor: colors.borderGrey,
   },
   swapBtn: {
     marginLeft: 16,
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.mist,
+    backgroundColor: colors.lightGrey,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -807,31 +870,31 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: colors.ink,
+    color: colors.primaryBlack,
     letterSpacing: -0.4,
   },
   sectionSub: {
     fontSize: 13,
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   vehiclesGrid: {
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   vehicleCard: {
     padding: 14,
     borderWidth: 1.5,
-    borderColor: colors.line,
+    borderColor: colors.borderGrey,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   vehicleCardSelected: {
-    borderColor: colors.ink,
-    backgroundColor: "#FFFFFF",
+    borderColor: colors.primaryBlack,
+    backgroundColor: colors.cardSurface,
   },
   vehicleArtWrapper: {
-    width: 90,
+    width: 80,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -846,77 +909,55 @@ const styles = StyleSheet.create({
   vehicleName: {
     fontSize: 15,
     fontWeight: "800",
-    color: colors.ink,
+    color: colors.primaryBlack,
   },
   vehiclePrice: {
     fontSize: 16,
     fontWeight: "900",
-    color: colors.ink,
+    color: colors.primaryBlack,
   },
   vehicleSpecs: {
     fontSize: 12,
-    color: colors.muted,
+    color: colors.secondaryText,
     marginTop: 4,
   },
   vehicleBestFor: {
     fontSize: 12,
-    color: colors.text,
+    color: colors.mainText,
     fontWeight: "500",
     marginTop: 4,
   },
-  helpersCard: {
+  detailsConfigCard: {
     padding: 16,
     marginBottom: 16,
   },
-  helpersTitle: {
+  detailsConfigRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  detailsIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.lightGrey,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailsConfigTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: colors.ink,
+    color: colors.primaryBlack,
   },
-  helpersDesc: {
-    fontSize: 13,
-    color: colors.muted,
-    lineHeight: 18,
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  helpersOptionsRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  helperOption: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    backgroundColor: colors.mist,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  helperOptionActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  helperOptLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  helperOptLabelActive: {
-    color: "#FFFFFF",
-  },
-  helperOptExtra: {
-    fontSize: 11,
-    color: colors.muted,
+  detailsConfigSub: {
+    fontSize: 12,
+    color: colors.secondaryText,
     marginTop: 2,
-  },
-  helperOptExtraActive: {
-    color: "rgba(255,255,255,0.7)",
   },
   fareCard: {
     padding: 16,
     gap: 8,
+    marginBottom: 16,
   },
   fareRow: {
     flexDirection: "row",
@@ -924,33 +965,33 @@ const styles = StyleSheet.create({
   },
   fareLabel: {
     fontSize: 14,
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   fareValue: {
     fontSize: 14,
     fontWeight: "600",
-    color: colors.text,
+    color: colors.mainText,
   },
   fareTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: colors.line,
+    borderTopColor: colors.borderGrey,
     paddingTop: 10,
     marginTop: 4,
   },
   totalLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
-    color: colors.ink,
+    color: colors.primaryBlack,
   },
   totalValue: {
     fontSize: 20,
     fontWeight: "900",
-    color: colors.ink,
+    color: colors.primaryBlack,
   },
   bottomBar: {
     borderTopWidth: 1,
-    borderTopColor: colors.line,
-    backgroundColor: "#FFFFFF",
+    borderTopColor: colors.borderGrey,
+    backgroundColor: colors.cardSurface,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 14,
@@ -958,116 +999,35 @@ const styles = StyleSheet.create({
   navBar: {
     flexDirection: "row",
     borderTopWidth: 1,
-    borderTopColor: colors.line,
-    backgroundColor: "#FFFFFF",
-    height: 58,
+    borderTopColor: colors.borderGrey,
+    backgroundColor: colors.cardSurface,
+    height: 60,
     alignItems: "center",
   },
   navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
+    height: "100%",
+    position: "relative",
   },
   navText: {
     fontSize: 11,
     fontWeight: "600",
-    color: colors.disabled,
+    color: colors.disabledGrey,
+    marginTop: 2,
   },
   navTextActive: {
-    color: colors.ink,
+    color: colors.primaryBlack,
     fontWeight: "800",
   },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: colors.ink,
-    letterSpacing: -0.7,
-  },
-  pageSub: {
-    fontSize: 14,
-    color: colors.muted,
-    marginTop: 4,
-    marginBottom: 20,
-  },
-  bookingItem: {
-    padding: 16,
-    gap: 10,
-  },
-  bookingItemHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  bookingItemFare: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: colors.ink,
-  },
-  bookingTripRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  bookingAddr: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  bookingVehicleInfo: {
-    fontSize: 13,
-    color: colors.muted,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    paddingTop: 10,
-    marginTop: 4,
-  },
-  profileCard: {
-    padding: 24,
-    alignItems: "center",
-  },
-  profileAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.ink,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: "#FFFFFF",
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.ink,
-  },
-  profilePhone: {
-    fontSize: 14,
-    color: colors.muted,
-    marginTop: 4,
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: colors.muted,
-  },
-  menuRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-  },
-  menuText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: colors.line,
+  activeTabIndicator: {
+    position: "absolute",
+    bottom: 2,
+    width: 24,
+    height: 2,
+    backgroundColor: colors.primaryBlack,
+    borderRadius: 1,
   },
   modalOverlay: {
     flex: 1,
@@ -1075,7 +1035,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.cardSurface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
@@ -1086,24 +1046,24 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.line,
+    backgroundColor: colors.borderGrey,
     alignSelf: "center",
     marginBottom: 16,
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: "900",
-    color: colors.ink,
+    color: colors.primaryBlack,
     letterSpacing: -0.5,
   },
   modalSub: {
     fontSize: 14,
-    color: colors.muted,
+    color: colors.secondaryText,
     marginTop: 4,
     marginBottom: 20,
   },
   modalSummary: {
-    backgroundColor: colors.paper,
+    backgroundColor: colors.background,
     borderRadius: 16,
     padding: 16,
     gap: 12,
@@ -1115,87 +1075,59 @@ const styles = StyleSheet.create({
   },
   modalLabel: {
     fontSize: 14,
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   modalVal: {
     fontSize: 14,
     fontWeight: "700",
-    color: colors.text,
+    color: colors.mainText,
   },
   modalTotal: {
     borderTopWidth: 1,
-    borderTopColor: colors.line,
+    borderTopColor: colors.borderGrey,
     paddingTop: 10,
   },
   modalTotalLabel: {
     fontSize: 16,
     fontWeight: "800",
-    color: colors.ink,
+    color: colors.primaryBlack,
   },
   modalTotalVal: {
     fontSize: 20,
     fontWeight: "900",
-    color: colors.ink,
+    color: colors.primaryBlack,
   },
   modalButtons: {
     gap: 8,
   },
-  successCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.line,
-    marginTop: 20,
-  },
-  successIconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.success,
+  searchingOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  searchingBox: {
+    width: "100%",
+    backgroundColor: colors.cardSurface,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+  },
+  searchingArt: {
     marginBottom: 16,
   },
-  successHeading: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: colors.ink,
-    letterSpacing: -0.6,
-  },
-  successSub: {
-    fontSize: 15,
-    color: colors.muted,
-    textAlign: "center",
-    lineHeight: 22,
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  confirmedDetails: {
-    width: "100%",
-    backgroundColor: colors.paper,
-    borderRadius: 14,
-    padding: 16,
-    gap: 10,
-    marginBottom: 24,
-  },
-  confirmedRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  confirmedLabel: {
-    fontSize: 14,
-    color: colors.muted,
-  },
-  confirmedVal: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  confirmedFare: {
+  searchingTitle: {
     fontSize: 18,
     fontWeight: "900",
-    color: colors.ink,
+    color: colors.primaryBlack,
+    textAlign: "center",
+  },
+  searchingSub: {
+    fontSize: 14,
+    color: colors.secondaryText,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 20,
   },
 });

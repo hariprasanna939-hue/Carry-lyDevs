@@ -30,8 +30,8 @@ const slides = [
 ];
 
 /**
- * Customer Onboarding 3-Slide Carousel faithfully matching Magic Patterns design
- * Frame ID: eCBVGmD5wiHxzyHxhyUz9C
+ * Customer Onboarding 3-Slide Carousel in Pure Monochrome
+ * Matching Magic Patterns design (Frame ID: eCBVGmD5wiHxzyHxhyUz9C)
  */
 export default function CustomerOnboardingScreen({ onFinish, onSkip }: Props) {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -117,7 +117,9 @@ export default function CustomerOnboardingScreen({ onFinish, onSkip }: Props) {
                   {
                     width: i === currentSlide ? 24 : 8,
                     backgroundColor:
-                      i === currentSlide ? colors.ink : colors.disabled,
+                      i === currentSlide
+                        ? colors.primaryBlack
+                        : colors.disabledGrey,
                   },
                 ]}
               />
@@ -138,7 +140,7 @@ export default function CustomerOnboardingScreen({ onFinish, onSkip }: Props) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
@@ -157,7 +159,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "monospace",
     fontWeight: "700",
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   skipButton: {
     paddingVertical: 6,
@@ -166,7 +168,7 @@ const styles = StyleSheet.create({
   skipText: {
     fontSize: 15,
     fontWeight: "700",
-    color: colors.text,
+    color: colors.mainText,
   },
   artworkArea: {
     flex: 1,
@@ -187,21 +189,21 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   helperCard: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.cardSurface,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.borderGrey,
     padding: 20,
   },
   helperTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: colors.ink,
+    color: colors.primaryBlack,
     letterSpacing: -0.3,
   },
   helperDesc: {
     fontSize: 14,
-    color: colors.muted,
+    color: colors.secondaryText,
     lineHeight: 20,
     marginTop: 6,
   },
@@ -214,23 +216,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 99,
-    backgroundColor: colors.mist,
+    backgroundColor: colors.lightGrey,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.borderGrey,
   },
   badgeActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
+    backgroundColor: colors.primaryBlack,
+    borderColor: colors.primaryBlack,
   },
   badgeText: {
     fontSize: 12,
     fontWeight: "700",
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   badgeTextActive: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: colors.white,
   },
   textDetails: {
     minHeight: 140,
@@ -240,7 +242,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: "900",
-    color: colors.ink,
+    color: colors.primaryBlack,
     letterSpacing: -0.8,
     lineHeight: 36,
   },
@@ -248,7 +250,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 15,
     lineHeight: 22,
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   footer: {
     flexDirection: "row",

@@ -1,33 +1,45 @@
 /**
- * CARRY Design System Theme Colors
- * Extracted directly from Magic Patterns OS design tokens
+ * CARRY Monochrome Design System Theme Colors
+ * Pure Black & White Minimalist Identity
+ * Overrides all previous color definitions.
  */
 export const colors = {
-  // Magic Patterns core tokens
-  ink: "#111111",
+  // Pure monochrome palette
+  pureBlack: "#000000",
+  primaryBlack: "#111111",
+  mainText: "#171717",
+  white: "#FFFFFF",
+  background: "#F7F7F7",
+  cardSurface: "#FFFFFF",
+  lightGrey: "#EEEEEE",
+  borderGrey: "#E2E2E2",
+  secondaryText: "#777777",
+  disabledGrey: "#BDBDBD",
+
+  // Monochrome semantic statuses (communicated through icons, shapes & shades)
+  success: "#444444",
+  warning: "#666666",
+  error: "#222222",
+  danger: "#222222",
+
+  // Compatibility tokens matching the exact monochrome palette
   pure: "#000000",
-  paper: "#F7F7F7",
+  ink: "#111111",
+  text: "#171717",
   card: "#FFFFFF",
+  paper: "#F7F7F7",
   mist: "#EEEEEE",
   line: "#E2E2E2",
-  text: "#171717",
   muted: "#777777",
   disabled: "#BDBDBD",
-  error: "#E53935",
-  err: "#E53935",
-  danger: "#E53935",
-  success: "#16A34A",
-  warning: "#D97706",
+  err: "#222222",
 
-  // Semantic compatibility aliases
-  background: "#F7F7F7",
   surface: "#FFFFFF",
   primary: "#111111",
   primaryDark: "#000000",
-  secondaryText: "#777777",
   border: "#E2E2E2",
-  customerTint: "#F0EDFF",
-  driverTint: "#F3F4F6",
+  customerTint: "#EEEEEE",
+  driverTint: "#EEEEEE",
   deepNavy: "#111111",
   accent: "#111111",
 } as const;

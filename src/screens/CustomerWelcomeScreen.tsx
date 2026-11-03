@@ -9,17 +9,15 @@ import { colors } from "../theme/colors";
 type Props = {
   onGetStarted: () => void;
   onLogin: () => void;
-  onSwitchToDriver?: () => void;
 };
 
 /**
- * Customer Welcome Screen faithfully reproduced from Magic Patterns design
- * Frame ID: mURvuBTY2MQnD33fCx7sn6
+ * Customer Welcome Screen in Pure Monochrome
+ * Matching Magic Patterns design (Frame ID: mURvuBTY2MQnD33fCx7sn6)
  */
 export default function CustomerWelcomeScreen({
   onGetStarted,
   onLogin,
-  onSwitchToDriver,
 }: Props) {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -62,16 +60,6 @@ export default function CustomerWelcomeScreen({
             <CarryButton onPress={onLogin} variant="secondary">
               I already have an account
             </CarryButton>
-
-            {onSwitchToDriver && (
-              <CarryButton
-                onPress={onSwitchToDriver}
-                variant="ghost"
-                size="md"
-              >
-                Driving a truck? Switch to Driver Portal →
-              </CarryButton>
-            )}
           </View>
         </View>
       </View>
@@ -82,7 +70,7 @@ export default function CustomerWelcomeScreen({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.white,
   },
   container: {
     flex: 1,
@@ -114,7 +102,7 @@ const styles = StyleSheet.create({
   headline: {
     fontSize: 38,
     fontWeight: "900",
-    color: colors.ink,
+    color: colors.primaryBlack,
     letterSpacing: -1.2,
     lineHeight: 42,
   },
@@ -122,7 +110,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     fontSize: 16,
     lineHeight: 24,
-    color: colors.muted,
+    color: colors.secondaryText,
   },
   actions: {
     marginTop: 28,
