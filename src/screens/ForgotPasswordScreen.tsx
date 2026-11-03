@@ -9,13 +9,14 @@ import { useCarryAuth } from "../auth/AuthContext";
 type Props = {
   onBack: () => void;
   onResetSent?: () => void;
+  onSuccess?: () => void;
 };
 
 /**
  * Forgot Password Screen faithfully reproduced from Magic Patterns design
  * Frame ID: izCg2V2afuMAr83ap9YTzG
  */
-export default function ForgotPasswordScreen({ onBack }: Props) {
+export default function ForgotPasswordScreen({ onBack, onSuccess }: Props) {
   const { sendPasswordReset } = useCarryAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,9 @@ export default function ForgotPasswordScreen({ onBack }: Props) {
     try {
       await sendPasswordReset(email.trim());
       setSent(true);
+      if (onSuccess) {
+        // Option to go directly to reset password test frame
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to send reset email. Verify address.");
     } finally {
@@ -62,9 +66,15 @@ export default function ForgotPasswordScreen({ onBack }: Props) {
             </Text>
 
             <View style={styles.sentActions}>
-              <CarryButton onPress={onBack} variant="primary">
-                Back to log in
-              </CarryButton>
+              {onSuccess ? (
+                <CarryButton onPress={onSuccess} variant="primary">
+                  Set New Password Now
+                </CarryButton>
+              ) : (
+                <CarryButton onPress={onBack} variant="primary">
+                  Back to log in
+                </CarryButton>
+              )}
               <CarryButton
                 onPress={() => setSent(false)}
                 variant="ghost"

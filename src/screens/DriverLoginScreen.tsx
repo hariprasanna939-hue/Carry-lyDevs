@@ -22,7 +22,9 @@ import { colors } from "../theme/colors";
 
 type Props = {
   onBack: () => void;
-  onCreate: () => void;
+  onCreate?: () => void;
+  onRegister?: () => void;
+  onForgotPassword?: () => void;
   onSuccess?: () => void;
 };
 
@@ -33,8 +35,11 @@ type Props = {
 export default function DriverLoginScreen({
   onBack,
   onCreate,
+  onRegister,
+  onForgotPassword,
   onSuccess,
 }: Props) {
+  const handleRegister = onRegister || onCreate || (() => {});
   const { login } = useCarryAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +47,8 @@ export default function DriverLoginScreen({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForgot, setShowForgot] = useState(false);
+
+  const handleForgot = onForgotPassword || (() => setShowForgot(true));
 
   if (showForgot) {
     return <ForgotPasswordScreen onBack={() => setShowForgot(false)} />;
@@ -128,7 +135,7 @@ export default function DriverLoginScreen({
               />
 
               <Pressable
-                onPress={() => setShowForgot(true)}
+                onPress={handleForgot}
                 style={styles.forgotBtn}
               >
                 <Text style={styles.forgotText}>Forgot password?</Text>
@@ -152,7 +159,7 @@ export default function DriverLoginScreen({
             <View style={styles.line} />
           </View>
 
-          <CarryButton onPress={onCreate} variant="secondary">
+          <CarryButton onPress={handleRegister} variant="secondary">
             Create driver account
           </CarryButton>
         </ScrollView>

@@ -22,9 +22,10 @@ import { colors } from "../theme/colors";
 
 interface Props {
   onSelected?: () => void;
+  onSelectRole?: (role: "customer" | "driver") => Promise<void> | void;
 }
 
-export default function PortalScreen({ onSelected }: Props) {
+export default function PortalScreen({ onSelected, onSelectRole }: Props) {
   const { profile, switchPortal, applyForDriver, logout } = useCarryAuth();
   const [loading, setLoading] = useState(false);
 
@@ -38,8 +39,12 @@ export default function PortalScreen({ onSelected }: Props) {
   const handleSwitch = async (portal: "customer" | "driver") => {
     try {
       setLoading(true);
-      await switchPortal(portal);
-      onSelected?.();
+      if (onSelectRole) {
+        await onSelectRole(portal);
+      } else {
+        await switchPortal(portal);
+        onSelected?.();
+      }
     } catch (error: any) {
       Alert.alert("Portal Switch", error?.message || "Please try again.");
     } finally {

@@ -7,9 +7,10 @@ import { CarryVehicleArt } from "../components/CarryVehicleArt";
 import { colors } from "../theme/colors";
 
 type Props = {
-  onCreate: () => void;
+  onCreate?: () => void;
+  onGetStarted?: () => void;
   onLogin: () => void;
-  onSwitchPortal: () => void;
+  onSwitchPortal?: () => void;
 };
 
 /**
@@ -18,9 +19,11 @@ type Props = {
  */
 export default function DriverWelcomeScreen({
   onCreate,
+  onGetStarted,
   onLogin,
   onSwitchPortal,
 }: Props) {
+  const handleCreate = onGetStarted || onCreate || (() => {});
   return (
     <View style={styles.container}>
       {/* Dark Upper Section: Hero */}
@@ -63,7 +66,7 @@ export default function DriverWelcomeScreen({
 
         {/* Action Buttons */}
         <View style={styles.actions}>
-          <CarryButton onPress={onCreate} variant="primary">
+          <CarryButton onPress={handleCreate} variant="primary">
             Become a CARRY driver
           </CarryButton>
 
@@ -71,11 +74,13 @@ export default function DriverWelcomeScreen({
             I already have an account
           </CarryButton>
 
-          <Pressable onPress={onSwitchPortal} style={styles.switchButton}>
-            <Text style={styles.switchText}>
-              Booking a vehicle instead? Switch to Customer
-            </Text>
-          </Pressable>
+          {onSwitchPortal && (
+            <Pressable onPress={onSwitchPortal} style={styles.switchButton}>
+              <Text style={styles.switchText}>
+                Booking a vehicle instead? Switch to Customer
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </View>

@@ -46,6 +46,7 @@ import { colors } from "../theme/colors";
 
 interface Props {
   onOpenAuth?: () => void;
+  onSwitchPortal?: () => void;
 }
 
 type TabType = "home" | "bookings" | "notifications" | "profile";
@@ -120,7 +121,10 @@ const COIMBATORE_AREAS = [
   "Ukkadam",
 ];
 
-export default function CustomerHomeScreen({ onOpenAuth }: Props) {
+export default function CustomerHomeScreen({
+  onOpenAuth,
+  onSwitchPortal,
+}: Props) {
   const { profile, firebaseUser } = useCarryAuth();
   const [activeTab, setActiveTab] = useState<TabType>("home");
 
@@ -487,7 +491,10 @@ export default function CustomerHomeScreen({ onOpenAuth }: Props) {
 
       {/* Profile Tab */}
       {activeTab === "profile" && (
-        <CustomerProfileScreen onOpenAuth={onOpenAuth} />
+        <CustomerProfileScreen
+          onOpenAuth={onOpenAuth}
+          onSwitchPortal={onSwitchPortal}
+        />
       )}
 
       {/* Bottom Action Bar on Home Tab */}

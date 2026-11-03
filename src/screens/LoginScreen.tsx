@@ -17,6 +17,7 @@ import { colors } from "../theme/colors";
 
 interface Props {
   onRegister: () => void;
+  onForgotPassword?: () => void;
   onSuccess?: () => void;
 }
 
@@ -24,7 +25,11 @@ interface Props {
  * Customer Login Screen faithfully reproduced from Magic Patterns design
  * Frame ID: e68mTGmeT1QVodDSsLsAEW
  */
-export default function LoginScreen({ onRegister, onSuccess }: Props) {
+export default function LoginScreen({
+  onRegister,
+  onForgotPassword,
+  onSuccess,
+}: Props) {
   const { login } = useCarryAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -32,6 +37,8 @@ export default function LoginScreen({ onRegister, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  const handleForgot = onForgotPassword || (() => setShowForgotPassword(true));
 
   if (showForgotPassword) {
     return <ForgotPasswordScreen onBack={() => setShowForgotPassword(false)} />;
@@ -122,7 +129,7 @@ export default function LoginScreen({ onRegister, onSuccess }: Props) {
               />
 
               <Pressable
-                onPress={() => setShowForgotPassword(true)}
+                onPress={handleForgot}
                 style={styles.forgotButton}
               >
                 <Text style={styles.forgotText}>Forgot password?</Text>
