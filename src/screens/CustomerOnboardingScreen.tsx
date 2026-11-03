@@ -25,6 +25,7 @@ import { colors } from "../theme/colors";
 interface Props {
   onFinish: () => void;
   onSkip: () => void;
+  onBackToWelcome?: () => void;
   initialSlide?: number;
 }
 
@@ -35,6 +36,7 @@ interface Props {
 export default function CustomerOnboardingScreen({
   onFinish,
   onSkip,
+  onBackToWelcome,
   initialSlide = 0,
 }: Props) {
   const [currentSlide, setCurrentSlide] = useState(initialSlide);
@@ -56,6 +58,8 @@ export default function CustomerOnboardingScreen({
   const handleBack = () => {
     if (currentSlide > 0) {
       setCurrentSlide((s) => s - 1);
+    } else if (onBackToWelcome) {
+      onBackToWelcome();
     }
   };
 
@@ -72,7 +76,7 @@ export default function CustomerOnboardingScreen({
       <OnboardingHeader
         currentSlide={currentSlide}
         totalSlides={ONBOARDING_SLIDES.length}
-        onBack={currentSlide > 0 ? handleBack : undefined}
+        onBack={currentSlide > 0 || onBackToWelcome ? handleBack : undefined}
         onSkip={handleSkip}
       />
 
@@ -217,6 +221,9 @@ export default function CustomerOnboardingScreen({
 
         {/* Text Content Area */}
         <View style={styles.textContent}>
+          {currentSlide === 2 && (
+            <Text style={styles.badgeLabel}>Moving Made Easy</Text>
+          )}
           <Text style={styles.headline}>{slide.title}</Text>
           <Text style={styles.description}>{slide.description}</Text>
         </View>
@@ -391,6 +398,14 @@ const styles = StyleSheet.create({
   textContent: {
     marginTop: 24,
     marginBottom: 8,
+  },
+  badgeLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.secondaryText,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 6,
   },
   headline: {
     fontSize: 30,

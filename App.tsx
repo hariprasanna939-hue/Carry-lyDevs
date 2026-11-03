@@ -62,7 +62,7 @@ type ScreenMode =
   // Selector
   | "portal_select";
 
-function MainNavigator() {
+export function MainNavigator() {
   const { firebaseUser, profile, loading, switchPortal, logout } = useCarryAuth();
   const [portal, setPortal] = useState<PortalType>("customer");
   const [screenMode, setScreenMode] = useState<ScreenMode>("splash");
@@ -131,22 +131,8 @@ function MainNavigator() {
             return;
           }
 
-          // If onboarding was already completed, go to login or choose role
-          if (hasCompletedOnboarding) {
-            const savedRole = await getSelectedRole();
-            if (savedRole === "driver") {
-              setPortal("driver");
-              setScreenMode("driver_login");
-            } else if (savedRole === "customer") {
-              setPortal("customer");
-              setScreenMode("customer_login");
-            } else {
-              setScreenMode("choose_role");
-            }
-          } else {
-            // First-time app open: Splash -> Welcome -> Onboarding -> Choose Role
-            setScreenMode("customer_welcome");
-          }
+          // First-launch & unauthenticated experience: Splash -> Welcome -> Onboarding
+          setScreenMode("customer_welcome");
         }}
       />
     );
@@ -178,6 +164,7 @@ function MainNavigator() {
     return (
       <CustomerOnboardingScreen
         initialSlide={onboardingSlideIndex}
+        onBackToWelcome={() => setScreenMode("customer_welcome")}
         onFinish={async () => {
           await completeOnboarding();
           setHasCompletedOnboarding(true);
