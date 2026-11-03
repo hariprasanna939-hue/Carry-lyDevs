@@ -1,136 +1,234 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CarryMapPreview } from "../components/CarryMapPreview";
-import { CarryButton } from "../components/CarryUI";
-import { CarryVehicleArt } from "../components/CarryVehicleArt";
+import { StatusBar } from "expo-status-bar";
+import { Check, Users } from "lucide-react-native";
+import { OnboardingButton } from "../components/onboarding/OnboardingButton";
+import {
+  OnboardingDots,
+  OnboardingHeader,
+} from "../components/onboarding/OnboardingProgress";
+import { CarryVehicleArt, VehicleArtType } from "../components/CarryVehicleArt";
+import {
+  ONBOARDING_SLIDES,
+  ONBOARDING_VEHICLES,
+} from "../features/onboarding/onboardingData";
+import { completeOnboarding } from "../features/onboarding/onboardingStorage";
 import { colors } from "../theme/colors";
 
-type Props = {
+interface Props {
   onFinish: () => void;
   onSkip: () => void;
-};
-
-const slides = [
-  {
-    title: "The right vehicle for every load.",
-    body: "From a single carton to a 3 BHK home — pick Mini, Small, Medium or Large and see the fare before you book.",
-    type: "vehicles",
-  },
-  {
-    title: "Instant, or on your schedule.",
-    body: "Get a driver in minutes, or lock in a date and time for your move. Your pickup and drop, saved for next time.",
-    type: "schedule",
-  },
-  {
-    title: "Helpers, floors, lifts — handled.",
-    body: "Add up to two loading helpers and tell us about stairs. Follow every step from pickup to drop.",
-    type: "helpers",
-  },
-];
+}
 
 /**
- * Customer Onboarding 3-Slide Carousel in Pure Monochrome
+ * Customer Onboarding 3-Slide Flow in Pure Monochrome
  * Matching Magic Patterns design (Frame ID: eCBVGmD5wiHxzyHxhyUz9C)
  */
 export default function CustomerOnboardingScreen({ onFinish, onSkip }: Props) {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const isLast = currentSlide === slides.length - 1;
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleArtType>("small");
+  const [helperCount, setHelperCount] = useState<1 | 2>(2);
 
-  const handleNext = () => {
+  const isLast = currentSlide === ONBOARDING_SLIDES.length - 1;
+  const slide = ONBOARDING_SLIDES[currentSlide];
+
+  const handleNext = async () => {
     if (isLast) {
+      await completeOnboarding();
       onFinish();
     } else {
       setCurrentSlide((s) => s + 1);
     }
   };
 
+  const handleBack = () => {
+    if (currentSlide > 0) {
+      setCurrentSlide((s) => s - 1);
+    }
+  };
+
+  const handleSkip = async () => {
+    await completeOnboarding();
+    onSkip();
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header with counter and Skip button */}
-        <View style={styles.header}>
-          <Text style={styles.counter}>
-            {currentSlide + 1}/{slides.length}
-          </Text>
-          <Pressable onPress={onSkip} style={styles.skipButton}>
-            <Text style={styles.skipText}>Skip</Text>
-          </Pressable>
-        </View>
+      <StatusBar style="dark" />
 
-        {/* Visual Illustration Area */}
-        <View style={styles.artworkArea}>
-          {currentSlide === 0 && (
-            <View style={styles.vehiclesShowcase}>
-              <View style={styles.vehicleRow}>
-                <CarryVehicleArt type="large" width={140} />
-              </View>
-              <View style={[styles.vehicleRow, { marginTop: 12 }]}>
-                <CarryVehicleArt type="mini" width={110} />
-              </View>
+      {/* Top Header with Progress and Skip */}
+      <OnboardingHeader
+        currentSlide={currentSlide}
+        totalSlides={ONBOARDING_SLIDES.length}
+        onBack={currentSlide > 0 ? handleBack : undefined}
+        onSkip={handleSkip}
+      />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ========================================================= */}
+        {/* SLIDE 1 ARTWORK: 4 VERTICALLY STACKED VEHICLE CARDS       */}
+        {/* ========================================================= */}
+        {currentSlide === 0 && (
+          <View style={styles.artworkContainer}>
+            <View style={styles.vehicleList}>
+              {ONBOARDING_VEHICLES.map((v) => {
+                const isSelected = selectedVehicle === v.id;
+                return (
+                  <Pressable
+                    key={v.id}
+                    onPress={() => setSelectedVehicle(v.id)}
+                    style={[
+                      styles.vehicleCard,
+                      isSelected
+                        ? styles.vehicleCardSelected
+                        : styles.vehicleCardDefault,
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={`${v.name} vehicle, capacity ${v.capacity}`}
+                  >
+                    <View style={styles.vehicleLabelCol}>
+                      <Text style={styles.vehicleName}>{v.name}</Text>
+                      <Text style={styles.vehicleCapacity}>{v.capacity}</Text>
+                    </View>
+                    <View style={styles.vehicleArtWrapper}>
+                      <CarryVehicleArt
+                        type={v.id}
+                        width={v.id === "large" ? 112 : v.id === "medium" ? 98 : 88}
+                      />
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
-          )}
+          </View>
+        )}
 
-          {currentSlide === 1 && (
-            <View style={styles.mapShowcase}>
-              <CarryMapPreview height={180} showRoute />
-            </View>
-          )}
+        {/* ========================================================= */}
+        {/* SLIDE 2 ARTWORK: HELPERS & MOVING SUPPORT                 */}
+        {/* ========================================================= */}
+        {currentSlide === 1 && (
+          <View style={styles.artworkContainer}>
+            <View style={styles.helpersContainer}>
+              {/* Interactive Helper Option Card */}
+              <Pressable
+                onPress={() => setHelperCount((h) => (h === 1 ? 2 : 1))}
+                style={styles.helperCard}
+                accessibilityRole="button"
+                accessibilityLabel={`${helperCount} helpers selected. Tap to change.`}
+              >
+                <View style={styles.helperIconCircle}>
+                  <Users size={22} color="#FFFFFF" />
+                </View>
 
-          {currentSlide === 2 && (
-            <View style={styles.helpersShowcase}>
-              <View style={styles.helperCard}>
-                <Text style={styles.helperTitle}>Loading & Unloading Helpers</Text>
-                <Text style={styles.helperDesc}>
-                  Trained partners in Coimbatore to carry your goods safely up and down stairs.
-                </Text>
-                <View style={styles.helperBadgesRow}>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Driver Only</Text>
-                  </View>
-                  <View style={[styles.badge, styles.badgeActive]}>
-                    <Text style={styles.badgeTextActive}>+1 Helper</Text>
-                  </View>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>+2 Helpers</Text>
-                  </View>
+                <View style={styles.helperTextCol}>
+                  <Text style={styles.helperCountText}>
+                    {helperCount} helper{helperCount > 1 ? "s" : ""}
+                  </Text>
+                  <Text style={styles.helperSubText}>Loading and unloading</Text>
+                </View>
+
+                <View style={styles.checkCircle}>
+                  <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                </View>
+              </Pressable>
+
+              {/* Floor and Lift Information Cards */}
+              <View style={styles.floorGrid}>
+                <View style={styles.floorCard}>
+                  <Text style={styles.floorLabel}>Pickup</Text>
+                  <Text style={styles.floorValue}>3rd floor</Text>
+                  <Text style={styles.floorSub}>Lift available</Text>
+                </View>
+
+                <View style={styles.floorCard}>
+                  <Text style={styles.floorLabel}>Drop</Text>
+                  <Text style={styles.floorValue}>Ground floor</Text>
+                  <Text style={styles.floorSub}>No stairs</Text>
                 </View>
               </View>
             </View>
-          )}
-        </View>
-
-        {/* Text Details Area */}
-        <View style={styles.textDetails}>
-          <Text style={styles.title}>{slides[currentSlide].title}</Text>
-          <Text style={styles.body}>{slides[currentSlide].body}</Text>
-        </View>
-
-        {/* Footer with Step Dots and Continue Button */}
-        <View style={styles.footer}>
-          <View style={styles.dotsRow}>
-            {slides.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  {
-                    width: i === currentSlide ? 24 : 8,
-                    backgroundColor:
-                      i === currentSlide
-                        ? colors.primaryBlack
-                        : colors.disabledGrey,
-                  },
-                ]}
-              />
-            ))}
           </View>
+        )}
 
-          <View style={styles.continueButtonWrapper}>
-            <CarryButton onPress={handleNext} variant="primary">
-              {isLast ? "Get started" : "Continue"}
-            </CarryButton>
+        {/* ========================================================= */}
+        {/* SLIDE 3 ARTWORK: GET STARTED & LIVE PROGRESSION           */}
+        {/* ========================================================= */}
+        {currentSlide === 2 && (
+          <View style={styles.artworkContainer}>
+            <View style={styles.helpersContainer}>
+              {/* Confirmed 2 Helpers Card */}
+              <View style={styles.helperCard}>
+                <View style={styles.helperIconCircle}>
+                  <Users size={22} color="#FFFFFF" />
+                </View>
+
+                <View style={styles.helperTextCol}>
+                  <Text style={styles.helperCountText}>2 helpers</Text>
+                  <Text style={styles.helperSubText}>Loading and unloading</Text>
+                </View>
+
+                <View style={styles.checkCircle}>
+                  <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                </View>
+              </View>
+
+              {/* Summary Floor Cards */}
+              <View style={styles.floorGrid}>
+                <View style={styles.floorCard}>
+                  <Text style={styles.floorLabel}>Pickup</Text>
+                  <Text style={styles.floorValue}>3rd floor</Text>
+                  <Text style={styles.floorSub}>Lift available</Text>
+                </View>
+
+                <View style={styles.floorCard}>
+                  <Text style={styles.floorLabel}>Drop</Text>
+                  <Text style={styles.floorValue}>Ground floor</Text>
+                  <Text style={styles.floorSub}>Direct entry</Text>
+                </View>
+              </View>
+
+              {/* Step Tracking Callout */}
+              <View style={styles.trackingPillCard}>
+                <View style={styles.trackingDot} />
+                <Text style={styles.trackingPillText}>
+                  Live move updates from pickup to drop
+                </Text>
+              </View>
+            </View>
           </View>
+        )}
+
+        {/* Text Content Area */}
+        <View style={styles.textContent}>
+          <Text style={styles.headline}>{slide.title}</Text>
+          <Text style={styles.description}>{slide.description}</Text>
+        </View>
+      </ScrollView>
+
+      {/* Footer Navigation Bar */}
+      <View style={styles.footer}>
+        <OnboardingDots
+          currentSlide={currentSlide}
+          totalSlides={ONBOARDING_SLIDES.length}
+        />
+
+        <View style={styles.buttonWrapper}>
+          <OnboardingButton
+            label={isLast ? "Get started" : "Next"}
+            onPress={handleNext}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -142,133 +240,178 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  container: {
+  scrollView: {
     flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: "space-between",
-    paddingBottom: 20,
   },
-  header: {
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 20,
+    justifyContent: "space-between",
+    minHeight: 460,
+  },
+  artworkContainer: {
+    paddingVertical: 12,
+  },
+  vehicleList: {
+    gap: 10,
+  },
+  vehicleCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 12,
-    height: 48,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: colors.white,
   },
-  counter: {
-    fontSize: 14,
-    fontFamily: "monospace",
-    fontWeight: "700",
-    color: colors.secondaryText,
+  vehicleCardDefault: {
+    borderWidth: 1,
+    borderColor: colors.borderGrey,
   },
-  skipButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+  vehicleCardSelected: {
+    borderWidth: 2,
+    borderColor: colors.primaryBlack,
   },
-  skipText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.mainText,
-  },
-  artworkArea: {
-    flex: 1,
+  vehicleLabelCol: {
     justifyContent: "center",
+  },
+  vehicleName: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.primaryBlack,
+  },
+  vehicleCapacity: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.secondaryText,
+    marginTop: 2,
+  },
+  vehicleArtWrapper: {
     alignItems: "center",
-    marginVertical: 12,
+    justifyContent: "center",
   },
-  vehiclesShowcase: {
-    alignItems: "center",
-  },
-  vehicleRow: {
-    alignItems: "center",
-  },
-  mapShowcase: {
-    width: "100%",
-  },
-  helpersShowcase: {
-    width: "100%",
+  helpersContainer: {
+    gap: 12,
   },
   helperCard: {
-    backgroundColor: colors.cardSurface,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: colors.primaryBlack,
+    padding: 16,
+  },
+  helperIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.primaryBlack,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  helperTextCol: {
+    flex: 1,
+  },
+  helperCountText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.primaryBlack,
+  },
+  helperSubText: {
+    fontSize: 13,
+    color: colors.secondaryText,
+    marginTop: 2,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primaryBlack,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  floorGrid: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  floorCard: {
+    flex: 1,
+    backgroundColor: colors.white,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.borderGrey,
-    padding: 20,
+    padding: 16,
   },
-  helperTitle: {
-    fontSize: 17,
+  floorLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.secondaryText,
+  },
+  floorValue: {
+    fontSize: 15,
     fontWeight: "800",
     color: colors.primaryBlack,
-    letterSpacing: -0.3,
+    marginTop: 4,
   },
-  helperDesc: {
-    fontSize: 14,
+  floorSub: {
+    fontSize: 13,
     color: colors.secondaryText,
-    lineHeight: 20,
-    marginTop: 6,
+    marginTop: 2,
   },
-  helperBadgesRow: {
+  trackingPillCard: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    marginTop: 16,
-  },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 99,
-    backgroundColor: colors.lightGrey,
+    backgroundColor: colors.white,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.borderGrey,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  badgeActive: {
+  trackingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.primaryBlack,
-    borderColor: colors.primaryBlack,
   },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.secondaryText,
+  trackingPillText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.primaryBlack,
   },
-  badgeTextActive: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.white,
+  textContent: {
+    marginTop: 24,
+    marginBottom: 8,
   },
-  textDetails: {
-    minHeight: 140,
-    justifyContent: "flex-end",
-    marginBottom: 20,
-  },
-  title: {
+  headline: {
     fontSize: 30,
     fontWeight: "900",
     color: colors.primaryBlack,
     letterSpacing: -0.8,
     lineHeight: 36,
   },
-  body: {
-    marginTop: 10,
+  description: {
     fontSize: 15,
-    lineHeight: 22,
     color: colors.secondaryText,
+    lineHeight: 22,
+    marginTop: 10,
   },
   footer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 24,
+    backgroundColor: colors.cardSurface,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderGrey,
   },
-  dotsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  continueButtonWrapper: {
-    flex: 1,
-    maxWidth: 180,
+  buttonWrapper: {
+    minWidth: 148,
   },
 });

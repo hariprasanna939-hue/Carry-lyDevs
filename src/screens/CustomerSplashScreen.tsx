@@ -1,37 +1,111 @@
-import React, { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  Dimensions,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { CarryLogo } from "../components/CarryLogo";
 import { colors } from "../theme/colors";
 
-type Props = {
+interface Props {
   onFinish: () => void;
-};
+}
+
+const { width } = Dimensions.get("window");
 
 /**
  * Customer Splash Screen in Pure Monochrome
- * Matching Magic Patterns design (Frame ID: mC9EjpbuHrBv532KzpcSHZ)
+ * Faithful reproduction of Magic Patterns frame (mC9EjpbuHrBv532KzpcSHZ)
  */
 export default function CustomerSplashScreen({ onFinish }: Props) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.96)).current;
+  const progressAnim = useRef(new Animated.Value(-60)).current;
+
   useEffect(() => {
+    // Fade & scale in the logo
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 380,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 380,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Loop progress bar light across the track
+    const progressLoop = Animated.loop(
+      Animated.timing(progressAnim, {
+        toValue: 120,
+        duration: 1100,
+        useNativeDriver: true,
+      })
+    );
+    progressLoop.start();
+
+    // Smooth transition out after splash duration
     const timer = setTimeout(() => {
-      onFinish();
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [onFinish]);
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        onFinish();
+      });
+    }, 1800);
+
+    return () => {
+      clearTimeout(timer);
+      progressLoop.stop();
+    };
+  }, [fadeAnim, scaleAnim, progressAnim, onFinish]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.centerBox}>
-        <CarryLogo size={48} tone="light" variant="wheel" />
-        <Text style={styles.tagline}>Move anything. Move smarter.</Text>
-      </View>
+      <StatusBar style="light" />
 
-      <View style={styles.footer}>
-        <View style={styles.progressBarBg}>
-          <View style={styles.progressBarFill} />
+      {/* Center Logo & Tagline */}
+      <Animated.View
+        style={[
+          styles.centerBox,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        <CarryLogo size={52} tone="light" variant="wheel" />
+        <Text style={styles.tagline}>Move anything. Move smarter.</Text>
+      </Animated.View>
+
+      {/* Bottom Progress Indicator & City Footnote */}
+      <Animated.View
+        style={[
+          styles.footer,
+          {
+            opacity: fadeAnim,
+          },
+        ]}
+      >
+        <View style={styles.progressBarTrack}>
+          <Animated.View
+            style={[
+              styles.progressBarLight,
+              {
+                transform: [{ translateX: progressAnim }],
+              },
+            ]}
+          />
         </View>
         <Text style={styles.cityText}>Now moving Coimbatore</Text>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -39,7 +113,7 @@ export default function CustomerSplashScreen({ onFinish }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.primaryBlack,
+    backgroundColor: colors.pureBlack,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
@@ -48,7 +122,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tagline: {
-    marginTop: 16,
+    marginTop: 14,
     fontSize: 16,
     fontWeight: "600",
     color: colors.disabledGrey,
@@ -60,15 +134,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  progressBarBg: {
-    width: 90,
+  progressBarTrack: {
+    width: 100,
     height: 2,
-    backgroundColor: colors.success, // #444444
+    backgroundColor: colors.success, // #444444 track
     borderRadius: 1,
     overflow: "hidden",
   },
-  progressBarFill: {
-    width: "50%",
+  progressBarLight: {
+    width: 48,
     height: "100%",
     backgroundColor: colors.white,
     borderRadius: 1,

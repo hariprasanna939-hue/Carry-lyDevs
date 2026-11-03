@@ -4,6 +4,7 @@ import Svg, { Circle, G, Line, Path, Rect } from "react-native-svg";
 import { colors } from "../theme/colors";
 
 export type VehicleCategory = "mini" | "small" | "medium" | "large" | "pickup" | "van";
+export type VehicleArtType = VehicleCategory;
 
 type VehicleArtProps = {
   type: VehicleCategory;

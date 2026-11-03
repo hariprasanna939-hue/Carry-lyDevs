@@ -25,6 +25,10 @@ import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import PortalScreen from "./src/screens/PortalScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
+import {
+  completeOnboarding,
+  isOnboardingCompleted,
+} from "./src/features/onboarding/onboardingStorage";
 import { colors } from "./src/theme/colors";
 
 type PortalType = "customer" | "driver" | "portal_select";
@@ -55,6 +59,22 @@ function MainNavigator() {
   const [portal, setPortal] = useState<PortalType>("customer");
   const [screenMode, setScreenMode] = useState<ScreenMode>("splash");
   const [tempDestination, setTempDestination] = useState("+91 98430 21765");
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<
+    boolean | null
+  >(null);
+
+  // Read AsyncStorage onboarding state on app mount
+  useEffect(() => {
+    let isMounted = true;
+    isOnboardingCompleted().then((completed) => {
+      if (isMounted) {
+        setHasCompletedOnboarding(completed);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Sync initial portal from profile if user is logged in
   useEffect(() => {
@@ -82,10 +102,24 @@ function MainNavigator() {
     return (
       <CustomerSplashScreen
         onFinish={() => {
+          // If already signed in, proceed directly to home
           if (firebaseUser) {
             setScreenMode(portal === "driver" ? "driver_home" : "customer_home");
+            return;
+          }
+
+          // If driver portal, go to driver welcome
+          if (portal === "driver") {
+            setScreenMode("driver_welcome");
+            return;
+          }
+
+          // If onboarding has already been completed, go straight to login
+          if (hasCompletedOnboarding) {
+            setScreenMode("customer_login");
           } else {
-            setScreenMode(portal === "driver" ? "driver_welcome" : "customer_welcome");
+            // First install flow: Splash -> Welcome -> Onboarding
+            setScreenMode("customer_welcome");
           }
         }}
       />
@@ -114,6 +148,10 @@ function MainNavigator() {
         <DriverWelcomeScreen
           onGetStarted={() => setScreenMode("driver_register")}
           onLogin={() => setScreenMode("driver_login")}
+          onSwitchPortal={() => {
+            setPortal("customer");
+            setScreenMode("customer_welcome");
+          }}
         />
       );
     }
@@ -169,26 +207,42 @@ function MainNavigator() {
   }
 
   // ==========================================================
-  // CUSTOMER SCREENS
+  // CUSTOMER SCREENS (FIRST-LAUNCH & AUTH FLOW)
   // ==========================================================
+
+  // Step 2 in First-Launch: Welcome Screen
   if (screenMode === "customer_welcome") {
     return (
       <CustomerWelcomeScreen
         onGetStarted={() => setScreenMode("customer_onboarding")}
-        onLogin={() => setScreenMode("customer_login")}
+        onLogin={async () => {
+          await completeOnboarding();
+          setHasCompletedOnboarding(true);
+          setScreenMode("customer_login");
+        }}
       />
     );
   }
 
+  // Step 3 in First-Launch: Onboarding 3-Slide Carousel
   if (screenMode === "customer_onboarding") {
     return (
       <CustomerOnboardingScreen
-        onFinish={() => setScreenMode("customer_home")}
-        onSkip={() => setScreenMode("customer_home")}
+        onFinish={async () => {
+          await completeOnboarding();
+          setHasCompletedOnboarding(true);
+          setScreenMode("customer_login");
+        }}
+        onSkip={async () => {
+          await completeOnboarding();
+          setHasCompletedOnboarding(true);
+          setScreenMode("customer_login");
+        }}
       />
     );
   }
 
+  // Step 4: Login Screen
   if (screenMode === "customer_login") {
     return (
       <LoginScreen
@@ -199,6 +253,7 @@ function MainNavigator() {
     );
   }
 
+  // Step 5: Register Screen
   if (screenMode === "customer_register") {
     return (
       <RegisterScreen
@@ -208,6 +263,7 @@ function MainNavigator() {
     );
   }
 
+  // Forgot Password Screen
   if (screenMode === "customer_forgot") {
     return (
       <ForgotPasswordScreen
@@ -217,6 +273,7 @@ function MainNavigator() {
     );
   }
 
+  // Reset Password Screen
   if (screenMode === "customer_reset") {
     return (
       <CustomerResetPasswordScreen
@@ -226,6 +283,7 @@ function MainNavigator() {
     );
   }
 
+  // OTP Verification Screen
   if (screenMode === "customer_otp") {
     return (
       <CustomerVerifyOTPScreen
