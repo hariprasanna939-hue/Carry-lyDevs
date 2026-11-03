@@ -15,6 +15,7 @@ import { colors } from "../../../src/theme/colors";
 import Button from "../../../src/components/ui/Button";
 import DocumentUploader from "../../../src/components/driver/DocumentUploader";
 import { useAuth } from "../../../src/hooks/useAuth";
+import { auth } from "../../../src/firebase/firebase";
 import { driverOnboardingService } from "../../../src/services/driver-onboarding.service";
 import {
   ApprovalLevelStatus,
@@ -24,8 +25,8 @@ import {
 
 export default function DriverStatusHubScreen() {
   const router = useRouter();
-  const { user, refreshProfile } = useAuth();
-  const uid = user?.uid || "guest_driver";
+  const { user, firebaseUser, refreshProfile } = useAuth();
+  const uid = auth.currentUser?.uid || firebaseUser?.uid || user?.uid || "";
 
   const [loading, setLoading] = useState(true);
   const [appRecord, setAppRecord] = useState<DriverApplicationRecord | null>(null);

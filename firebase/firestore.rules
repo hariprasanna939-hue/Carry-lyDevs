@@ -255,7 +255,7 @@ service cloud.firestore {
       data.keys().hasAll(['uid', 'email', 'phone', 'roles', 'activePortal', 'accountStatus', 'createdAt']) &&
       data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
       data.email is string && isValidEmail(data.email) &&
-      data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 20 &&
+      data.phone is string && data.phone.size() >= 0 && data.phone.size() <= 20 &&
       data.roles is list && data.roles.size() >= 1 && data.roles.size() <= 3 &&
       data.roles.hasOnly(['customer', 'driver', 'admin']) &&
       data.activePortal in ['customer', 'driver'] &&
@@ -263,7 +263,7 @@ service cloud.firestore {
       data.createdAt is timestamp &&
       (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
       (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 100)) &&
-      (!('photoURL' in data) || data.photoURL == null || isValidUrl(data.photoURL)) &&
+      (!('photoURL' in data) || data.photoURL == null || data.photoURL == '' || isValidUrl(data.photoURL)) &&
       (!('driverVerificationStatus' in data) || data.driverVerificationStatus in ['not_applied', 'pending', 'approved', 'rejected', 'under_review', 'suspended']) &&
       (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
@@ -490,14 +490,19 @@ service cloud.firestore {
       // PII Protection: Only the authenticated owner or admin can read the user document
       allow read: if isOwner(uid) || isAdmin();
 
-      // Create: Owner can initialize their profile with customer role and active status
+      // Create: Owner can initialize their profile with customer or driver role and active status
       allow create: if isOwner(uid)
         && request.resource.data.uid == uid
         && isValidUser(request.resource.data)
         && (
           (
-            request.resource.data.roles == ['customer']
-            && request.resource.data.activePortal == 'customer'
+            request.resource.data.roles.hasOnly(['customer', 'driver'])
+            && !request.resource.data.roles.hasAny(['admin'])
+            && request.resource.data.activePortal in ['customer', 'driver']
+            && (
+              request.resource.data.activePortal == 'customer'
+              || request.resource.data.roles.hasAny(['driver'])
+            )
             && request.resource.data.accountStatus == 'active'
             && (
               !('driverVerificationStatus' in request.resource.data)
@@ -511,12 +516,18 @@ service cloud.firestore {
         isOwner(uid)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.roles == resource.data.roles
         && request.resource.data.accountStatus == resource.data.accountStatus
+        && request.resource.data.roles.hasOnly(['customer', 'driver'])
+        && !request.resource.data.roles.hasAny(['admin'])
         && (
-          request.resource.data.driverVerificationStatus == resource.data.driverVerificationStatus
+          (!('driverVerificationStatus' in request.resource.data) && !('driverVerificationStatus' in resource.data))
           || (
-            (!('driverVerificationStatus' in resource.data) || resource.data.driverVerificationStatus in ['not_applied', 'none', ''])
+            ('driverVerificationStatus' in request.resource.data) && ('driverVerificationStatus' in resource.data)
+            && request.resource.data.driverVerificationStatus == resource.data.driverVerificationStatus
+          )
+          || (
+            ('driverVerificationStatus' in request.resource.data)
+            && (!('driverVerificationStatus' in resource.data) || resource.data.driverVerificationStatus in ['not_applied', 'none', ''])
             && request.resource.data.driverVerificationStatus == 'pending'
           )
         )
@@ -524,8 +535,7 @@ service cloud.firestore {
           request.resource.data.activePortal == 'customer'
           || (
             request.resource.data.activePortal == 'driver'
-            && resource.data.roles.hasAny(['driver'])
-            && resource.data.driverVerificationStatus == 'approved'
+            && request.resource.data.roles.hasAny(['driver'])
           )
         )
         && isValidUser(request.resource.data)
@@ -835,15 +845,21 @@ service cloud.firestore {
     // ===============================================================
     match /driverApplications/{applicationId} {
       // Driver reads their own application; Admin reads all
-      allow read: if (isAuthenticated() && request.auth.uid == applicationId)
-        || (resource != null && resource.data.driverUid == request.auth.uid)
+      allow read: if (isAuthenticated() && (request.auth.uid == applicationId || resource == null || resource.data.driverUid == request.auth.uid))
         || isAdmin();
 
       // Driver creates/updates their application draft
       allow create, update: if isAuthenticated()
         && (request.auth.uid == applicationId || request.resource.data.driverUid == request.auth.uid)
-        // Drivers cannot self-approve; only pending/draft/submitted/needs_correction allowed unless admin
-        && (isAdmin() || request.resource.data.status in ['DRAFT', 'INCOMPLETE', 'SUBMITTED', 'UNDER_REVIEW', 'NEEDS_CORRECTION']);
+        // Protect approval fields: Drivers cannot self-approve; only draft/incomplete/submitted/under_review/needs_correction allowed unless admin
+        && (
+          isAdmin() || (
+            request.resource.data.status in ['DRAFT', 'INCOMPLETE', 'SUBMITTED', 'UNDER_REVIEW', 'NEEDS_CORRECTION']
+            && (!('driverApproval' in request.resource.data) || !(request.resource.data.driverApproval in ['approved', 'verified']) || (resource != null && request.resource.data.driverApproval == resource.data.driverApproval))
+            && (!('vehicleApproval' in request.resource.data) || !(request.resource.data.vehicleApproval in ['approved', 'verified']) || (resource != null && request.resource.data.vehicleApproval == resource.data.vehicleApproval))
+            && (!('bankVerification' in request.resource.data) || !(request.resource.data.bankVerification in ['approved', 'verified']) || (resource != null && request.resource.data.bankVerification == resource.data.bankVerification))
+          )
+        );
 
       allow delete: if isAdmin();
     }

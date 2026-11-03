@@ -12,13 +12,14 @@ import { useRouter } from "expo-router";
 import { colors } from "../../src/theme/colors";
 import Button from "../../src/components/ui/Button";
 import { useAuth } from "../../src/hooks/useAuth";
+import { auth } from "../../src/firebase/firebase";
 import { driverOnboardingService } from "../../src/services/driver-onboarding.service";
 import { DriverApplicationRecord } from "../../src/types/driver-onboarding";
 
 export default function DriverDashboardScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const uid = user?.uid || "guest_driver";
+  const { user, firebaseUser } = useAuth();
+  const uid = auth.currentUser?.uid || firebaseUser?.uid || user?.uid || "";
 
   const [isOnline, setIsOnline] = useState(false);
   const [appRecord, setAppRecord] = useState<DriverApplicationRecord | null>(null);

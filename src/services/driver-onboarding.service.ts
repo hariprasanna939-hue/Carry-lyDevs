@@ -16,6 +16,7 @@ import {
   uploadBytesResumable,
 } from "firebase/storage";
 import { auth, db, storage } from "../firebase/firebase";
+import { logFirebaseDevOp } from "../utils/dev-logger";
 import {
   AdminAuditLog,
   ApprovalLevelStatus,
@@ -38,6 +39,12 @@ export const driverOnboardingService = {
     uid: string,
     partialData: Partial<DriverApplicationRecord>
   ): Promise<DriverApplicationRecord> {
+    if (!uid || uid === "guest_driver") {
+      console.warn("[DriverOnboarding] Attempted to save draft with invalid/unauthenticated UID:", uid);
+      const local = await AsyncStorage.getItem(this.getDraftKey(uid || "guest_driver"));
+      return local ? JSON.parse(local) : (partialData as DriverApplicationRecord);
+    }
+
     try {
       const existing = await this.getDriverApplication(uid);
       const updated: DriverApplicationRecord = {
@@ -54,6 +61,16 @@ export const driverOnboardingService = {
 
       // 2. Persist to Firestore driverApplications/{uid}
       const appRef = doc(db, "driverApplications", uid);
+      logFirebaseDevOp({
+        operation: "setDoc",
+        collectionOrBucket: "driverApplications",
+        documentPath: uid,
+        authenticatedUid: auth.currentUser?.uid,
+        accountRole: "driver",
+        onboardingStatus: updated.status,
+        approvalStatus: updated.driverApproval,
+      });
+
       await setDoc(appRef, {
         ...updated,
         updatedAt: serverTimestamp(),
@@ -61,6 +78,14 @@ export const driverOnboardingService = {
 
       return updated;
     } catch (error) {
+      logFirebaseDevOp({
+        operation: "setDoc",
+        collectionOrBucket: "driverApplications",
+        documentPath: uid,
+        authenticatedUid: auth.currentUser?.uid,
+        accountRole: "driver",
+        error,
+      });
       console.warn("Failed to persist draft to cloud, saved locally:", error);
       const local = await AsyncStorage.getItem(this.getDraftKey(uid));
       return local ? JSON.parse(local) : (partialData as DriverApplicationRecord);
@@ -87,7 +112,21 @@ export const driverOnboardingService = {
       termsAccepted: false,
     };
 
+    if (!uid || uid === "guest_driver") {
+      console.warn("[DriverOnboarding] getDriverApplication called with unauthenticated/dummy UID:", uid);
+      const local = await AsyncStorage.getItem(this.getDraftKey(uid || "guest_driver"));
+      return local ? JSON.parse(local) : defaultRecord;
+    }
+
     try {
+      logFirebaseDevOp({
+        operation: "getDoc",
+        collectionOrBucket: "driverApplications",
+        documentPath: uid,
+        authenticatedUid: auth.currentUser?.uid,
+        accountRole: "driver",
+      });
+
       const snap = await getDoc(doc(db, "driverApplications", uid));
       if (snap.exists()) {
         const cloudData = snap.data() as DriverApplicationRecord;
@@ -98,6 +137,14 @@ export const driverOnboardingService = {
         return cloudData;
       }
     } catch (e) {
+      logFirebaseDevOp({
+        operation: "getDoc",
+        collectionOrBucket: "driverApplications",
+        documentPath: uid,
+        authenticatedUid: auth.currentUser?.uid,
+        accountRole: "driver",
+        error: e,
+      });
       console.log("Firestore draft read failed, checking local cache:", e);
     }
 
@@ -196,33 +243,65 @@ export const driverOnboardingService = {
     };
 
     // Update driverApplications collection
-    await setDoc(doc(db, "driverApplications", uid), {
-      ...submittedRecord,
-      updatedAt: serverTimestamp(),
-      submittedAt: serverTimestamp(),
-    }, { merge: true });
+    logFirebaseDevOp({
+      operation: "setDoc",
+      collectionOrBucket: "driverApplications",
+      documentPath: uid,
+      authenticatedUid: auth.currentUser?.uid,
+      accountRole: "driver",
+      onboardingStatus: "SUBMITTED",
+      approvalStatus: "pending",
+    });
 
-    // Update users/{uid} collection
-    await setDoc(doc(db, "users", uid), {
-      roles: ["driver"],
-      activePortal: "driver",
-      driverVerificationStatus: "pending",
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+    try {
+      await setDoc(doc(db, "driverApplications", uid), {
+        ...submittedRecord,
+        updatedAt: serverTimestamp(),
+        submittedAt: serverTimestamp(),
+      }, { merge: true });
 
-    // Update drivers/{uid}
-    await setDoc(doc(db, "drivers", uid), {
-      userId: uid,
-      fullName: app.personalDetails.fullName,
-      phone: app.personalDetails.verifiedPhone,
-      email: app.personalDetails.email || "",
-      verificationStatus: "pending",
-      onlineStatus: false,
-      serviceAreas: app.servicePreferences?.preferredLocalities || ["Gandhipuram (Central Hub)"],
-      referenceNumber,
-      submissionDate,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+      // Update users/{uid} collection
+      logFirebaseDevOp({
+        operation: "setDoc",
+        collectionOrBucket: "users",
+        documentPath: uid,
+        authenticatedUid: auth.currentUser?.uid,
+        accountRole: "driver",
+        onboardingStatus: "SUBMITTED",
+        approvalStatus: "pending",
+      });
+
+      await setDoc(doc(db, "users", uid), {
+        roles: ["driver"],
+        activePortal: "driver",
+        driverVerificationStatus: "pending",
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      // Update drivers/{uid}
+      await setDoc(doc(db, "drivers", uid), {
+        userId: uid,
+        fullName: app.personalDetails.fullName,
+        phone: app.personalDetails.verifiedPhone,
+        email: app.personalDetails.email || "",
+        verificationStatus: "pending",
+        onlineStatus: false,
+        serviceAreas: app.servicePreferences?.preferredLocalities || ["Gandhipuram (Central Hub)"],
+        referenceNumber,
+        submissionDate,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    } catch (err) {
+      logFirebaseDevOp({
+        operation: "setDoc",
+        collectionOrBucket: "driverApplications/users/drivers",
+        documentPath: uid,
+        authenticatedUid: auth.currentUser?.uid,
+        accountRole: "driver",
+        error: err,
+      });
+      throw err;
+    }
 
     // Update local cache
     await AsyncStorage.setItem(

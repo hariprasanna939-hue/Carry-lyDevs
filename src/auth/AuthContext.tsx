@@ -22,6 +22,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 import { ActivePortal, CarryUser } from "../types/user";
+import { logFirebaseDevOp } from "../utils/dev-logger";
 
 interface AuthContextType {
   firebaseUser: User | null;
@@ -74,30 +75,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setFirebaseUser(user);
       try {
         if (user) {
+          logFirebaseDevOp({
+            operation: "getDoc",
+            collectionOrBucket: "users",
+            documentPath: user.uid,
+            authenticatedUid: user.uid,
+          });
+
           const profileRef = doc(db, "users", user.uid);
           const snapshot = await getDoc(profileRef);
           if (snapshot.exists()) {
-            setProfile(snapshot.data() as CarryUser);
+            const userData = snapshot.data() as CarryUser;
+            setProfile(userData);
+            logFirebaseDevOp({
+              operation: "getDoc",
+              collectionOrBucket: "users",
+              documentPath: user.uid,
+              authenticatedUid: user.uid,
+              accountRole: userData.roles,
+              approvalStatus: userData.driverVerificationStatus,
+            });
           } else {
-            // Safe recovery: create base customer profile if Firestore doc is missing
+            // Check if user is a driver by checking driverApplications collection
+            let isDriver = false;
+            try {
+              const appSnap = await getDoc(doc(db, "driverApplications", user.uid));
+              if (appSnap.exists()) {
+                isDriver = true;
+              }
+            } catch {
+              // Ignore check failure
+            }
+
+            const roleName = isDriver ? "driver" : "customer";
             const baseProfile: CarryUser = {
               uid: user.uid,
-              name: user.displayName || "Customer",
-              fullName: user.displayName || "Customer",
-              email: user.email || "",
-              phone: user.phoneNumber || "",
-              roles: ["customer"],
-              activePortal: "customer",
-              photoURL: "",
-              driverVerificationStatus: "not_applied",
+              name: user.displayName || (isDriver ? "Driver Partner" : "Customer"),
+              fullName: user.displayName || (isDriver ? "Driver Partner" : "Customer"),
+              email: user.email || `${user.uid}@carry.app`,
+              phone: user.phoneNumber || "+91 98430 00000",
+              roles: [roleName],
+              activePortal: roleName,
+              photoURL: user.photoURL || "",
+              driverVerificationStatus: isDriver ? "pending" : "not_applied",
               accountStatus: "active",
-              createdAt: new Date(),
-              updatedAt: new Date(),
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
             };
+
+            logFirebaseDevOp({
+              operation: "setDoc",
+              collectionOrBucket: "users",
+              documentPath: user.uid,
+              authenticatedUid: user.uid,
+              accountRole: roleName,
+              approvalStatus: baseProfile.driverVerificationStatus,
+            });
+
             try {
               await setDoc(profileRef, baseProfile);
               setProfile(baseProfile);
-            } catch {
+            } catch (createErr) {
+              logFirebaseDevOp({
+                operation: "setDoc",
+                collectionOrBucket: "users",
+                documentPath: user.uid,
+                authenticatedUid: user.uid,
+                accountRole: roleName,
+                error: createErr,
+              });
               setProfile(null);
             }
           }
@@ -105,6 +151,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
         }
       } catch (error) {
+        logFirebaseDevOp({
+          operation: "getDoc",
+          collectionOrBucket: "users",
+          documentPath: user?.uid || "unknown",
+          authenticatedUid: user?.uid,
+          error,
+        });
         console.error("Profile loading failed:", error);
         setProfile(null);
       } finally {
@@ -146,9 +199,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     try {
+      logFirebaseDevOp({
+        operation: "setDoc",
+        collectionOrBucket: "users",
+        documentPath: credential.user.uid,
+        authenticatedUid: credential.user.uid,
+        accountRole: role,
+        approvalStatus: newProfile.driverVerificationStatus,
+      });
+
       await setDoc(doc(db, "users", credential.user.uid), newProfile);
       setProfile(newProfile);
     } catch (error) {
+      logFirebaseDevOp({
+        operation: "setDoc",
+        collectionOrBucket: "users",
+        documentPath: credential.user.uid,
+        authenticatedUid: credential.user.uid,
+        accountRole: role,
+        error,
+      });
       // Do not leave a partially registered session active.
       await signOut(auth);
       throw error;
@@ -156,6 +226,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
+    logFirebaseDevOp({
+      operation: "auth_check",
+      collectionOrBucket: "auth",
+      documentPath: email.trim().toLowerCase(),
+    });
+
     await signInWithEmailAndPassword(
       auth,
       email.trim().toLowerCase(),

@@ -8,10 +8,11 @@ import {
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { AuthProvider, useCarryAuth } from "./src/auth/AuthContext";
 import { auth, db } from "./src/firebase/firebase";
 import { CarryLogo } from "./src/components/CarryLogo";
+import { logFirebaseDevOp } from "./src/utils/dev-logger";
 import ChooseRoleScreen from "./src/screens/ChooseRoleScreen";
 import CustomerHomeScreen from "./src/screens/CustomerHomeScreen";
 import CustomerOnboardingScreen from "./src/screens/CustomerOnboardingScreen";
@@ -244,11 +245,62 @@ export function MainNavigator() {
                 return;
               }
 
-              const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-              const data = userDoc.data() as CarryUser | undefined;
+              logFirebaseDevOp({
+                operation: "getDoc",
+                collectionOrBucket: "users",
+                documentPath: currentUser.uid,
+                authenticatedUid: currentUser.uid,
+              });
+
+              let userDoc = await getDoc(doc(db, "users", currentUser.uid));
+              let data = userDoc.data() as CarryUser | undefined;
+
+              // If user doc doesn't exist, check driverApplications collection
+              if (!userDoc.exists()) {
+                const appSnap = await getDoc(doc(db, "driverApplications", currentUser.uid));
+                const isDriverApplicant = appSnap.exists();
+
+                const recoveredProfile: CarryUser = {
+                  uid: currentUser.uid,
+                  name: currentUser.displayName || (isDriverApplicant ? "Driver Partner" : "Driver"),
+                  fullName: currentUser.displayName || (isDriverApplicant ? "Driver Partner" : "Driver"),
+                  email: currentUser.email || `${currentUser.uid}@carry.app`,
+                  phone: currentUser.phoneNumber || "+91 98430 00000",
+                  roles: ["driver"],
+                  activePortal: "driver",
+                  photoURL: currentUser.photoURL || "",
+                  driverVerificationStatus: isDriverApplicant ? "pending" : "not_applied",
+                  accountStatus: "active",
+                  createdAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                };
+
+                try {
+                  await setDoc(doc(db, "users", currentUser.uid), recoveredProfile);
+                  data = recoveredProfile;
+                } catch (recErr) {
+                  logFirebaseDevOp({
+                    operation: "setDoc",
+                    collectionOrBucket: "users",
+                    documentPath: currentUser.uid,
+                    authenticatedUid: currentUser.uid,
+                    error: recErr,
+                  });
+                }
+              }
+
               const roles = data?.roles || [];
               const driverVerificationStatus =
                 data?.driverVerificationStatus || "not_applied";
+
+              logFirebaseDevOp({
+                operation: "getDoc",
+                collectionOrBucket: "users",
+                documentPath: currentUser.uid,
+                authenticatedUid: currentUser.uid,
+                accountRole: roles,
+                approvalStatus: driverVerificationStatus,
+              });
 
               // Check if user is purely a customer with no driver role or application
               const hasDriverRole = roles.includes("driver");
@@ -294,6 +346,16 @@ export function MainNavigator() {
                   currentUser.uid
                 );
 
+              logFirebaseDevOp({
+                operation: "getDoc",
+                collectionOrBucket: "driverApplications",
+                documentPath: currentUser.uid,
+                authenticatedUid: currentUser.uid,
+                accountRole: "driver",
+                onboardingStatus: appRecord.status,
+                approvalStatus: driverVerificationStatus,
+              });
+
               if (
                 appRecord.status === "SUBMITTED" ||
                 appRecord.status === "UNDER_REVIEW" ||
@@ -319,6 +381,13 @@ export function MainNavigator() {
                 setScreenMode("driver_onboarding");
               }
             } catch (err) {
+              logFirebaseDevOp({
+                operation: "auth_check",
+                collectionOrBucket: "driver_login",
+                documentPath: auth.currentUser?.uid || "unknown",
+                authenticatedUid: auth.currentUser?.uid,
+                error: err,
+              });
               console.error("Driver login routing error:", err);
               setScreenMode("driver_onboarding");
             }

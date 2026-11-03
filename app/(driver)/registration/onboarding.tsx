@@ -20,6 +20,7 @@ import OnboardingProgressBar from "../../../src/components/driver/OnboardingProg
 import DocumentUploader from "../../../src/components/driver/DocumentUploader";
 import CoimbatoreAreaPicker from "../../../src/components/driver/CoimbatoreAreaPicker";
 import { useAuth } from "../../../src/hooks/useAuth";
+import { auth } from "../../../src/firebase/firebase";
 import { driverOnboardingService } from "../../../src/services/driver-onboarding.service";
 import {
   COIMBATORE_LOCALITIES,
@@ -58,8 +59,8 @@ export default function DriverOnboardingWizard({
   onSubmitted,
 }: DriverOnboardingWizardProps = {}) {
   const router = useRouter();
-  const { user } = useAuth();
-  const uid = user?.uid || "guest_driver";
+  const { user, firebaseUser } = useAuth();
+  const uid = auth.currentUser?.uid || firebaseUser?.uid || user?.uid || "";
 
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
@@ -180,6 +181,7 @@ export default function DriverOnboardingWizard({
   // Load saved draft on mount
   useEffect(() => {
     async function initDraft() {
+      if (!uid) return;
       try {
         const saved = await driverOnboardingService.getDriverApplication(uid);
         setAppData(saved);
@@ -560,7 +562,7 @@ export default function DriverOnboardingWizard({
     }
   };
 
-  if (loadingInitial) {
+  if (!uid || loadingInitial) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={colors.primary} />

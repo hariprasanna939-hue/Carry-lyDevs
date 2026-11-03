@@ -1,0 +1,895 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// 1. Collection: users/{uid}
+//    Document ID: Firebase Auth UID
+//    Fields:
+//      - uid: string (required, matches document id and request.auth.uid)
+//      - name / fullName: string (optional, 1..100 chars)
+//      - email: string (required, valid email, <= 100 chars)
+//      - phone: string (required, 5..20 chars)
+//      - roles: list of strings (required, ['customer', 'driver', 'admin'], <= 3 items)
+//      - activePortal: string (required, 'customer' | 'driver')
+//      - photoURL: string (optional, URL string, <= 500 chars)
+//      - driverVerificationStatus: string (optional, 'not_applied' | 'pending' | 'approved' | 'rejected' | 'under_review' | 'suspended')
+//      - accountStatus: string (required, 'active' | 'suspended' | 'deleted')
+//      - createdAt: timestamp (required on create, immutable on update)
+//      - updatedAt: timestamp (optional)
+//
+// 2. Collection: driverProfiles/{uid}
+//    Document ID: Driver's Auth UID (references users/{uid})
+//    Fields:
+//      - userId: string (required, matches document id)
+//      - fullName: string (required, 1..100 chars)
+//      - phone: string (required, 5..20 chars)
+//      - email: string (optional, valid email, <= 100 chars)
+//      - verificationStatus: string (required, 'not_applied' | 'pending' | 'approved' | 'rejected')
+//      - onlineStatus: bool (required, whether driver is currently accepting jobs)
+//      - serviceAreas: list of strings (optional, <= 30 items)
+//      - rating: number (required, 0 to 5)
+//      - totalTrips: number (required, >= 0)
+//      - serviceCity: string (optional, <= 50 chars)
+//      - vehicle: map (optional, driver vehicle details)
+//      - vehicleCategory: string (optional, <= 50 chars)
+//      - documents: map (optional, driving license, RC book, etc.)
+//      - currentLatitude: number (optional, -90 to 90)
+//      - currentLongitude: number (optional, -180 to 180)
+//      - totalEarningsPaise: number (optional, >= 0)
+//      - activeVehicleId: string (optional, <= 100 chars)
+//      - licenseNumber: string (optional, <= 50 chars)
+//      - licenseExpiry: timestamp (optional)
+//      - createdAt: timestamp (required on create, immutable on update)
+//      - updatedAt: timestamp (optional)
+//
+// 3. Collection: vehicles/{vehicleId}
+//    Document ID: Auto-generated or custom vehicle ID
+//    Fields:
+//      - id: string (optional, <= 100 chars)
+//      - driverId: string (required, references driverProfiles/{uid})
+//      - vehicleType: string (required, 1..50 chars, e.g. 'tata_ace', '3_wheeler_cargo')
+//      - registrationNumber: string (required, 3..30 chars, e.g. 'TN-38-AB-1234')
+//      - capacityKg: number (required, > 0 and <= 50000)
+//      - vehiclePhotos: list of strings (optional, <= 10 URLs)
+//      - verificationStatus: string (required, 'pending' | 'approved' | 'rejected')
+//      - isActive: bool (required)
+//      - createdAt: timestamp (required on create, immutable on update)
+//      - updatedAt: timestamp (optional)
+//
+// 4. Collection: bookings/{bookingId}
+//    Document ID: Auto-generated booking ID
+//    Fields:
+//      - id: string (optional, <= 100 chars)
+//      - customerId: string (required, references users/{uid})
+//      - driverId: string (optional, references driverProfiles/{uid} when assigned)
+//      - vehicleId: string (optional, <= 100 chars)
+//      - vehicleCategory: string (required, 1..50 chars)
+//      - pickup: map (required: address 1..300 chars, latitude -90..90, longitude -180..180)
+//      - drop / dropoff: map (required: address 1..300 chars, latitude -90..90, longitude -180..180)
+//      - items: list of maps (optional, cargo items, <= 20 items)
+//      - cargo: map (optional, single cargo item)
+//      - helperCount / helpersCount: number (required, 0 to 10)
+//      - scheduledAt: timestamp or string or null (optional)
+//      - scheduledTime: string (optional, <= 50 chars)
+//      - distanceKm / estimatedDistanceKm: number (required, 0 to 2000 km)
+//      - fareBreakdown / fare: map (required fare structure)
+//      - totalFare: number (required, >= 0)
+//      - paymentStatus: string (required, 'pending' | 'paid' | 'failed')
+//      - bookingStatus / status: string (required, 'searching' | 'accepted' | 'arrived_pickup' | 'loading_started' | 'in_transit' | 'delivered' | 'completed' | 'cancelled')
+//      - isInstant: bool (optional)
+//      - paymentMethod: string (optional, <= 30 chars)
+//      - pickupOtp: string (optional, <= 10 chars)
+//      - deliveryOtp: string (optional, <= 10 chars)
+//      - cancellationReason: string (optional, <= 500 chars)
+//      - createdAt: timestamp (required on create, immutable on update)
+//      - completedAt: timestamp or null (optional)
+//      - updatedAt: timestamp (optional)
+//
+// 5. Collection: bookingEvents/{eventId}
+//    Document ID: Auto-generated event ID
+//    Fields:
+//      - id: string (optional, <= 100 chars)
+//      - bookingId: string (required, references bookings/{bookingId})
+//      - eventType: string (required, 1..50 chars)
+//      - description: string (required, 1..500 chars)
+//      - createdBy: string (required, user UID or 'system', <= 128 chars)
+//      - createdAt: timestamp (required)
+//
+// 6. Collection: driverLocations/{uid}
+//    Document ID: Driver's Auth UID
+//    Fields:
+//      - latitude: number (required, -90 to 90)
+//      - longitude: number (required, -180 to 180)
+//      - bookingId: string or null (optional, active trip reference)
+//      - driverId: string (optional, <= 128 chars)
+//      - heading: number (optional, 0 to 360)
+//      - speed: number (optional, 0 to 250)
+//      - updatedAt: timestamp (required)
+//
+// 7. Collection: payments/{paymentId}
+//    Document ID: Auto-generated payment record ID
+//    Fields:
+//      - id: string (optional, <= 100 chars)
+//      - bookingId: string (required, references bookings/{bookingId})
+//      - customerId: string (required, references users/{uid})
+//      - amount / amountPaise: number (positive amount)
+//      - provider: string (optional, 'cash' | 'upi' | 'razorpay' | 'manual')
+//      - method: string (optional, 'cash' | 'upi' | 'card' | 'razorpay' | 'stripe')
+//      - providerPaymentId: string (optional, <= 100 chars)
+//      - paymentStatus / status: string (optional, 'pending' | 'paid' | 'failed' | 'refunded')
+//      - transactionRef: string (optional, <= 100 chars)
+//      - createdAt: timestamp (required on create, immutable on update)
+//      - completedAt: timestamp (optional)
+//
+// 8. Collection: reviews/{reviewId}
+//    Document ID: Auto-generated review ID
+//    Fields:
+//      - id: string (optional, <= 100 chars)
+//      - bookingId: string (required, references bookings/{bookingId})
+//      - customerId / reviewerId: string (required, references users/{uid})
+//      - driverId / targetUserId: string (required, references driverProfiles/{uid})
+//      - rating: number (required, integer between 1 and 5)
+//      - comment: string (required, <= 1000 chars)
+//      - createdAt: timestamp (required on create, immutable on update)
+//
+// 9. Collection: notifications/{notificationId}
+//    Document ID: Auto-generated notification ID
+//    Fields:
+//      - id: string (optional, <= 100 chars)
+//      - userId: string (required, references users/{uid})
+//      - title: string (required, 1..100 chars)
+//      - body / message: string (required, 1..500 chars)
+//      - read: bool (required, whether read)
+//      - type: string (optional, 'booking' | 'payment' | 'system')
+//      - createdAt: timestamp (required on create, immutable on update)
+//      - updatedAt: timestamp (optional)
+//
+// 10. Collection: pricingRules/{ruleId}
+//     Document ID: Config rule ID (e.g. 'cbe_tata_ace')
+//     Fields:
+//       - id: string (optional, <= 100 chars)
+//       - city: string (required, 1..50 chars, e.g. 'Coimbatore')
+//       - vehicleType: string (required, 1..50 chars)
+//       - baseFare: number (required, >= 0 and <= 100000)
+//       - perKmRate: number (required, >= 0 and <= 10000)
+//       - helperRate: number (required, >= 0 and <= 10000)
+//       - isActive: bool (required)
+//       - createdAt: timestamp (optional)
+//       - updatedAt: timestamp (optional)
+//
+// 11. Collection: supportTickets/{ticketId}
+//     Document ID: Auto-generated ticket ID
+//     Fields:
+//       - id: string (optional, <= 100 chars)
+//       - userId: string (required, references users/{uid})
+//       - bookingId: string or null (optional, <= 128 chars)
+//       - issue: string (required, 1..2000 chars)
+//       - status: string (required, 'open' | 'in_progress' | 'resolved' | 'closed')
+//       - subject: string (optional, <= 100 chars)
+//       - createdAt: timestamp (required on create, immutable on update)
+//       - updatedAt: timestamp (optional)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Global Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == "admin" ||
+        (request.auth.token.roles is list && request.auth.token.roles.hasAny(["admin"]))
+      );
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() <= 100 &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+        url.size() <= 500 &&
+        (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^gs://.*"));
+    }
+
+    function isVerifiedDriver() {
+      return isAuthenticated() && (
+        (request.auth.token.role == "driver" && request.auth.token.verified == true) ||
+        (
+          exists(/databases/$(database)/documents/driverProfiles/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/driverProfiles/$(request.auth.uid)).data.verificationStatus == "approved"
+        )
+      );
+    }
+
+    function isOnlineVerifiedDriver() {
+      return isAuthenticated() && (
+        (request.auth.token.role == "driver" && request.auth.token.verified == true) ||
+        (
+          exists(/databases/$(database)/documents/driverProfiles/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/driverProfiles/$(request.auth.uid)).data.verificationStatus == "approved" &&
+          get(/databases/$(database)/documents/driverProfiles/$(request.auth.uid)).data.onlineStatus == true
+        )
+      );
+    }
+
+    function isBookingParticipantOrOpen(bookingDoc) {
+      return bookingDoc.customerId == request.auth.uid ||
+        (('driverId' in bookingDoc) && bookingDoc.driverId == request.auth.uid) ||
+        (isOnlineVerifiedDriver() && (bookingDoc.status == "searching" || bookingDoc.bookingStatus == "searching")) ||
+        isAdmin();
+    }
+
+    // ===============================================================
+    // Domain Validator Functions
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasOnly([
+        'uid', 'name', 'fullName', 'email', 'phone', 'roles',
+        'activePortal', 'photoURL', 'driverVerificationStatus',
+        'accountStatus', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasAll(['uid', 'email', 'phone', 'roles', 'activePortal', 'accountStatus', 'createdAt']) &&
+      data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+      data.email is string && isValidEmail(data.email) &&
+      data.phone is string && data.phone.size() >= 0 && data.phone.size() <= 20 &&
+      data.roles is list && data.roles.size() >= 1 && data.roles.size() <= 3 &&
+      data.roles.hasOnly(['customer', 'driver', 'admin']) &&
+      data.activePortal in ['customer', 'driver'] &&
+      data.accountStatus in ['active', 'suspended', 'deleted'] &&
+      data.createdAt is timestamp &&
+      (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+      (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 100)) &&
+      (!('photoURL' in data) || data.photoURL == null || data.photoURL == '' || isValidUrl(data.photoURL)) &&
+      (!('driverVerificationStatus' in data) || data.driverVerificationStatus in ['not_applied', 'pending', 'approved', 'rejected', 'under_review', 'suspended']) &&
+      (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidDriverProfile(data) {
+      return data.keys().hasOnly([
+        'userId', 'fullName', 'phone', 'email', 'verificationStatus', 'onlineStatus',
+        'serviceAreas', 'rating', 'totalTrips', 'serviceCity', 'vehicle',
+        'vehicleCategory', 'documents', 'currentLatitude', 'currentLongitude',
+        'totalEarningsPaise', 'activeVehicleId', 'licenseNumber', 'licenseExpiry',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasAll(['userId', 'fullName', 'phone', 'verificationStatus', 'onlineStatus', 'rating', 'totalTrips', 'createdAt']) &&
+      data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+      data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100 &&
+      data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 20 &&
+      data.verificationStatus in ['not_applied', 'pending', 'approved', 'rejected', 'under_review', 'suspended'] &&
+      data.onlineStatus is bool &&
+      data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+      data.totalTrips is number && data.totalTrips >= 0 &&
+      data.createdAt is timestamp &&
+      (!('email' in data) || (data.email is string && isValidEmail(data.email))) &&
+      (!('serviceCity' in data) || (data.serviceCity is string && data.serviceCity.size() <= 50)) &&
+      (!('vehicleCategory' in data) || (data.vehicleCategory is string && data.vehicleCategory.size() <= 50)) &&
+      (!('serviceAreas' in data) || (data.serviceAreas is list && data.serviceAreas.size() <= 30)) &&
+      (!('vehicle' in data) || data.vehicle is map) &&
+      (!('documents' in data) || data.documents is map) &&
+      (!('currentLatitude' in data) || (data.currentLatitude is number && data.currentLatitude >= -90 && data.currentLatitude <= 90)) &&
+      (!('currentLongitude' in data) || (data.currentLongitude is number && data.currentLongitude >= -180 && data.currentLongitude <= 180)) &&
+      (!('totalEarningsPaise' in data) || (data.totalEarningsPaise is number && data.totalEarningsPaise >= 0)) &&
+      (!('activeVehicleId' in data) || data.activeVehicleId == null || (data.activeVehicleId is string && data.activeVehicleId.size() <= 100)) &&
+      (!('licenseNumber' in data) || (data.licenseNumber is string && data.licenseNumber.size() <= 50)) &&
+      (!('licenseExpiry' in data) || data.licenseExpiry == null || data.licenseExpiry is timestamp) &&
+      (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasOnly([
+        'id', 'driverId', 'vehicleType', 'registrationNumber', 'capacityKg',
+        'vehiclePhotos', 'verificationStatus', 'isActive', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasAll(['driverId', 'vehicleType', 'registrationNumber', 'capacityKg', 'verificationStatus', 'isActive', 'createdAt']) &&
+      data.driverId is string && data.driverId.size() >= 1 && data.driverId.size() <= 128 &&
+      data.vehicleType is string && data.vehicleType.size() >= 1 && data.vehicleType.size() <= 50 &&
+      data.registrationNumber is string && data.registrationNumber.size() >= 3 && data.registrationNumber.size() <= 30 &&
+      data.capacityKg is number && data.capacityKg > 0 && data.capacityKg <= 50000 &&
+      data.verificationStatus in ['pending', 'approved', 'rejected'] &&
+      data.isActive is bool &&
+      data.createdAt is timestamp &&
+      (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+      (!('vehiclePhotos' in data) || (data.vehiclePhotos is list && data.vehiclePhotos.size() <= 10)) &&
+      (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidLocationPoint(loc) {
+      return loc is map &&
+        loc.keys().hasAll(['address', 'latitude', 'longitude']) &&
+        loc.address is string && loc.address.size() >= 1 && loc.address.size() <= 300 &&
+        loc.latitude is number && loc.latitude >= -90 && loc.latitude <= 90 &&
+        loc.longitude is number && loc.longitude >= -180 && loc.longitude <= 180 &&
+        (!('contactName' in loc) || (loc.contactName is string && loc.contactName.size() <= 100)) &&
+        (!('contactPhone' in loc) || (loc.contactPhone is string && loc.contactPhone.size() <= 30)) &&
+        (!('landmark' in loc) || (loc.landmark is string && loc.landmark.size() <= 200));
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasOnly([
+        'id', 'customerId', 'driverId', 'vehicleId', 'vehicleCategory',
+        'pickup', 'drop', 'dropoff', 'items', 'cargo', 'helperCount',
+        'helpersCount', 'scheduledAt', 'scheduledTime', 'distanceKm',
+        'estimatedDistanceKm', 'fareBreakdown', 'fare', 'totalFare',
+        'paymentStatus', 'bookingStatus', 'status', 'isInstant',
+        'paymentMethod', 'pickupOtp', 'deliveryOtp', 'cancellationReason',
+        'createdAt', 'completedAt', 'updatedAt'
+      ]) &&
+      data.keys().hasAll([
+        'customerId', 'vehicleCategory', 'pickup', 'drop',
+        'helperCount', 'distanceKm', 'totalFare', 'paymentStatus',
+        'bookingStatus', 'status', 'createdAt'
+      ]) &&
+      data.customerId is string && data.customerId.size() >= 1 && data.customerId.size() <= 128 &&
+      data.vehicleCategory is string && data.vehicleCategory.size() >= 1 && data.vehicleCategory.size() <= 50 &&
+      isValidLocationPoint(data.pickup) &&
+      isValidLocationPoint(data.drop) &&
+      data.helperCount is number && data.helperCount >= 0 && data.helperCount <= 10 &&
+      data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 2000 &&
+      data.totalFare is number && data.totalFare >= 0 && data.totalFare <= 1000000 &&
+      data.paymentStatus in ['pending', 'paid', 'failed'] &&
+      data.bookingStatus in ['searching', 'accepted', 'arrived_pickup', 'loading_started', 'in_transit', 'delivered', 'completed', 'cancelled'] &&
+      data.status in ['searching', 'accepted', 'arrived_pickup', 'loading_started', 'in_transit', 'delivered', 'completed', 'cancelled'] &&
+      data.createdAt is timestamp &&
+      (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+      (!('driverId' in data) || data.driverId == null || (data.driverId is string && data.driverId.size() <= 128)) &&
+      (!('vehicleId' in data) || data.vehicleId == null || (data.vehicleId is string && data.vehicleId.size() <= 100)) &&
+      (!('dropoff' in data) || isValidLocationPoint(data.dropoff)) &&
+      (!('items' in data) || (data.items is list && data.items.size() <= 20)) &&
+      (!('cargo' in data) || data.cargo is map) &&
+      (!('helpersCount' in data) || (data.helpersCount is number && data.helpersCount >= 0 && data.helpersCount <= 10)) &&
+      (!('estimatedDistanceKm' in data) || (data.estimatedDistanceKm is number && data.estimatedDistanceKm >= 0)) &&
+      (!('fareBreakdown' in data) || data.fareBreakdown is map) &&
+      (!('fare' in data) || data.fare is map) &&
+      (!('isInstant' in data) || data.isInstant is bool) &&
+      (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 30)) &&
+      (!('pickupOtp' in data) || (data.pickupOtp is string && data.pickupOtp.size() <= 10)) &&
+      (!('deliveryOtp' in data) || (data.deliveryOtp is string && data.deliveryOtp.size() <= 10)) &&
+      (!('cancellationReason' in data) || (data.cancellationReason is string && data.cancellationReason.size() <= 500)) &&
+      (!('scheduledAt' in data) || data.scheduledAt == null || data.scheduledAt is string || data.scheduledAt is timestamp) &&
+      (!('scheduledTime' in data) || (data.scheduledTime is string && data.scheduledTime.size() <= 50)) &&
+      (!('completedAt' in data) || data.completedAt == null || data.completedAt is timestamp) &&
+      (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidBookingEvent(data) {
+      return data.keys().hasOnly(['id', 'bookingId', 'eventType', 'description', 'createdBy', 'createdAt']) &&
+        data.keys().hasAll(['bookingId', 'eventType', 'description', 'createdBy', 'createdAt']) &&
+        data.bookingId is string && data.bookingId.size() >= 1 && data.bookingId.size() <= 128 &&
+        data.eventType is string && data.eventType.size() >= 1 && data.eventType.size() <= 50 &&
+        data.description is string && data.description.size() >= 1 && data.description.size() <= 500 &&
+        data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+        data.createdAt is timestamp &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 100));
+    }
+
+    function isValidDriverLocation(data) {
+      return data.keys().hasOnly(['latitude', 'longitude', 'bookingId', 'driverId', 'heading', 'speed', 'updatedAt']) &&
+        data.keys().hasAll(['latitude', 'longitude', 'updatedAt']) &&
+        data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
+        data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
+        data.updatedAt is timestamp &&
+        (!('bookingId' in data) || data.bookingId == null || (data.bookingId is string && data.bookingId.size() <= 128)) &&
+        (!('driverId' in data) || (data.driverId is string && data.driverId.size() <= 128)) &&
+        (!('heading' in data) || (data.heading is number && data.heading >= 0 && data.heading <= 360)) &&
+        (!('speed' in data) || (data.speed is number && data.speed >= 0 && data.speed <= 250));
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasOnly([
+        'id', 'bookingId', 'customerId', 'amount', 'amountPaise',
+        'provider', 'method', 'providerPaymentId', 'paymentStatus',
+        'status', 'transactionRef', 'createdAt', 'completedAt'
+      ]) &&
+      data.keys().hasAll(['bookingId', 'customerId', 'createdAt']) &&
+      data.bookingId is string && data.bookingId.size() >= 1 && data.bookingId.size() <= 128 &&
+      data.customerId is string && data.customerId.size() >= 1 && data.customerId.size() <= 128 &&
+      data.createdAt is timestamp &&
+      (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+      (!('amount' in data) || (data.amount is number && data.amount > 0 && data.amount <= 1000000)) &&
+      (!('amountPaise' in data) || (data.amountPaise is number && data.amountPaise > 0 && data.amountPaise <= 100000000)) &&
+      (!('provider' in data) || data.provider in ['cash', 'upi', 'razorpay', 'manual']) &&
+      (!('method' in data) || data.method in ['cash', 'upi', 'card', 'razorpay', 'stripe']) &&
+      (!('providerPaymentId' in data) || (data.providerPaymentId is string && data.providerPaymentId.size() <= 100)) &&
+      (!('paymentStatus' in data) || data.paymentStatus in ['pending', 'paid', 'failed', 'refunded']) &&
+      (!('status' in data) || data.status in ['pending', 'paid', 'failed', 'refunded']) &&
+      (!('transactionRef' in data) || (data.transactionRef is string && data.transactionRef.size() <= 100)) &&
+      (!('completedAt' in data) || data.completedAt is timestamp);
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasOnly(['id', 'bookingId', 'customerId', 'driverId', 'rating', 'comment', 'reviewerId', 'targetUserId', 'createdAt']) &&
+        data.keys().hasAll(['bookingId', 'customerId', 'driverId', 'rating', 'comment', 'createdAt']) &&
+        data.bookingId is string && data.bookingId.size() >= 1 && data.bookingId.size() <= 128 &&
+        data.customerId is string && data.customerId.size() >= 1 && data.customerId.size() <= 128 &&
+        data.driverId is string && data.driverId.size() >= 1 && data.driverId.size() <= 128 &&
+        data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+        data.comment is string && data.comment.size() <= 1000 &&
+        data.createdAt is timestamp &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+        (!('reviewerId' in data) || (data.reviewerId is string && data.reviewerId.size() <= 128)) &&
+        (!('targetUserId' in data) || (data.targetUserId is string && data.targetUserId.size() <= 128));
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasOnly(['id', 'userId', 'title', 'body', 'message', 'read', 'type', 'createdAt', 'updatedAt']) &&
+        data.keys().hasAll(['userId', 'title', 'read', 'createdAt']) &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+        data.read is bool &&
+        data.createdAt is timestamp &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+        (!('body' in data) || (data.body is string && data.body.size() <= 500)) &&
+        (!('message' in data) || (data.message is string && data.message.size() <= 500)) &&
+        (!('type' in data) || data.type in ['booking', 'payment', 'system']) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidPricingRule(data) {
+      return data.keys().hasOnly(['id', 'city', 'vehicleType', 'baseFare', 'perKmRate', 'helperRate', 'isActive', 'createdAt', 'updatedAt']) &&
+        data.keys().hasAll(['city', 'vehicleType', 'baseFare', 'perKmRate', 'helperRate', 'isActive']) &&
+        data.city is string && data.city.size() >= 1 && data.city.size() <= 50 &&
+        data.vehicleType is string && data.vehicleType.size() >= 1 && data.vehicleType.size() <= 50 &&
+        data.baseFare is number && data.baseFare >= 0 && data.baseFare <= 100000 &&
+        data.perKmRate is number && data.perKmRate >= 0 && data.perKmRate <= 10000 &&
+        data.helperRate is number && data.helperRate >= 0 && data.helperRate <= 10000 &&
+        data.isActive is bool &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidSupportTicket(data) {
+      return data.keys().hasOnly(['id', 'userId', 'bookingId', 'issue', 'status', 'subject', 'createdAt', 'updatedAt']) &&
+        data.keys().hasAll(['userId', 'issue', 'status', 'createdAt']) &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.issue is string && data.issue.size() >= 1 && data.issue.size() <= 2000 &&
+        data.status in ['open', 'in_progress', 'resolved', 'closed'] &&
+        data.createdAt is timestamp &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+        (!('bookingId' in data) || data.bookingId == null || (data.bookingId is string && data.bookingId.size() <= 128)) &&
+        (!('subject' in data) || (data.subject is string && data.subject.size() <= 100)) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // ===============================================================
+    // Root Match: Default Deny
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // 1. users/{uid}
+    // ===============================================================
+    match /users/{uid} {
+      // PII Protection: Only the authenticated owner or admin can read the user document
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Create: Owner can initialize their profile with customer or driver role and active status
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && isValidUser(request.resource.data)
+        && (
+          (
+            request.resource.data.roles.hasOnly(['customer', 'driver'])
+            && !request.resource.data.roles.hasAny(['admin'])
+            && request.resource.data.activePortal in ['customer', 'driver']
+            && (
+              request.resource.data.activePortal == 'customer'
+              || request.resource.data.roles.hasAny(['driver'])
+            )
+            && request.resource.data.accountStatus == 'active'
+            && (
+              !('driverVerificationStatus' in request.resource.data)
+              || request.resource.data.driverVerificationStatus in ['not_applied', 'pending']
+            )
+          ) || isAdmin()
+        );
+
+      // Update: Owner can update personal info; prevent client privilege escalation
+      allow update: if (
+        isOwner(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.accountStatus == resource.data.accountStatus
+        && request.resource.data.roles.hasOnly(['customer', 'driver'])
+        && !request.resource.data.roles.hasAny(['admin'])
+        && (
+          (!('driverVerificationStatus' in request.resource.data) && !('driverVerificationStatus' in resource.data))
+          || (
+            ('driverVerificationStatus' in request.resource.data) && ('driverVerificationStatus' in resource.data)
+            && request.resource.data.driverVerificationStatus == resource.data.driverVerificationStatus
+          )
+          || (
+            ('driverVerificationStatus' in request.resource.data)
+            && (!('driverVerificationStatus' in resource.data) || resource.data.driverVerificationStatus in ['not_applied', 'none', ''])
+            && request.resource.data.driverVerificationStatus == 'pending'
+          )
+        )
+        && (
+          request.resource.data.activePortal == 'customer'
+          || (
+            request.resource.data.activePortal == 'driver'
+            && request.resource.data.roles.hasAny(['driver'])
+          )
+        )
+        && isValidUser(request.resource.data)
+      ) || (isAdmin() && isValidUser(request.resource.data));
+
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 2. driverProfiles/{uid}
+    // ===============================================================
+    match /driverProfiles/{uid} {
+      // Driver reads their own profile; authenticated users can read basic info of approved drivers
+      allow read: if isOwner(uid)
+        || (isAuthenticated() && resource.data.verificationStatus == 'approved')
+        || isAdmin();
+
+      // Create: Owner driver registers with pending status and offline
+      allow create: if isOwner(uid)
+        && request.resource.data.userId == uid
+        && request.resource.data.verificationStatus == 'pending'
+        && request.resource.data.onlineStatus == false
+        && request.resource.data.totalTrips == 0
+        && (request.resource.data.rating == 5 || request.resource.data.rating == 5.0)
+        && isValidDriverProfile(request.resource.data);
+
+      // Update: Verification status, totalTrips, and rating are admin/backend controlled
+      allow update: if (
+        isOwner(uid)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.verificationStatus == resource.data.verificationStatus
+        && request.resource.data.rating == resource.data.rating
+        && request.resource.data.totalTrips == resource.data.totalTrips
+        && (
+          request.resource.data.onlineStatus == resource.data.onlineStatus
+          || resource.data.verificationStatus == 'approved'
+        )
+        && isValidDriverProfile(request.resource.data)
+      ) || (isAdmin() && isValidDriverProfile(request.resource.data));
+
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 3. vehicles/{vehicleId}
+    // ===============================================================
+    match /vehicles/{vehicleId} {
+      // Driver reads their vehicles; customers read active verified vehicles
+      allow read: if (isAuthenticated() && resource.data.driverId == request.auth.uid)
+        || (isAuthenticated() && resource.data.isActive == true && resource.data.verificationStatus == 'approved')
+        || isAdmin();
+
+      // Create: Driver registers a vehicle with pending verification status
+      allow create: if isAuthenticated()
+        && request.resource.data.driverId == request.auth.uid
+        && request.resource.data.verificationStatus == 'pending'
+        && isValidVehicle(request.resource.data);
+
+      // Update: Driver updates vehicle specs; cannot self-approve verificationStatus
+      allow update: if (
+        isAuthenticated()
+        && resource.data.driverId == request.auth.uid
+        && request.resource.data.driverId == resource.data.driverId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.verificationStatus == resource.data.verificationStatus
+        && isValidVehicle(request.resource.data)
+      ) || (isAdmin() && isValidVehicle(request.resource.data));
+
+      allow delete: if (isAuthenticated() && resource.data.driverId == request.auth.uid) || isAdmin();
+    }
+
+    // ===============================================================
+    // 4. bookings/{bookingId}
+    // ===============================================================
+    match /bookings/{bookingId} {
+      // Customer reads own; Driver reads assigned; Verified drivers read open searching requests
+      allow read: if (isAuthenticated() && resource.data.customerId == request.auth.uid)
+        || (isAuthenticated() && ('driverId' in resource.data) && resource.data.driverId == request.auth.uid)
+        || (isOnlineVerifiedDriver() && (resource.data.status == 'searching' || resource.data.bookingStatus == 'searching'))
+        || isAdmin();
+
+      // Create: Authenticated customer requests booking
+      allow create: if isAuthenticated()
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.bookingStatus == 'searching'
+        && request.resource.data.status == 'searching'
+        && request.resource.data.paymentStatus == 'pending'
+        && (!('driverId' in request.resource.data) || request.resource.data.driverId == "" || request.resource.data.driverId == null)
+        && isValidBooking(request.resource.data);
+
+      // Update:
+      // 1. Customer cancelling or recording payment
+      // 2. Assigned driver advancing trip milestones
+      // 3. Online verified driver accepting an open searching booking
+      // 4. Admin
+      allow update: if (
+        // Customer updates
+        (
+          isAuthenticated()
+          && resource.data.customerId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.totalFare == resource.data.totalFare
+          && (
+            (request.resource.data.status == 'cancelled' && request.resource.data.bookingStatus == 'cancelled' && resource.data.status in ['searching', 'accepted', 'arrived_pickup'])
+            || (request.resource.data.paymentStatus == 'paid' && request.resource.data.status == resource.data.status)
+          )
+          && isValidBooking(request.resource.data)
+        )
+        // Assigned driver milestones
+        || (
+          isAuthenticated()
+          && ('driverId' in resource.data)
+          && resource.data.driverId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.driverId == resource.data.driverId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.totalFare == resource.data.totalFare
+          && isValidBooking(request.resource.data)
+        )
+        // Online verified driver accepting open job
+        || (
+          isOnlineVerifiedDriver()
+          && (resource.data.status == 'searching' || resource.data.bookingStatus == 'searching')
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.totalFare == resource.data.totalFare
+          && request.resource.data.driverId == request.auth.uid
+          && request.resource.data.status in ['accepted', 'searching']
+          && request.resource.data.bookingStatus in ['accepted', 'searching']
+          && isValidBooking(request.resource.data)
+        )
+        // Admin
+        || (isAdmin() && isValidBooking(request.resource.data))
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 5. bookingEvents/{eventId}
+    // ===============================================================
+    match /bookingEvents/{eventId} {
+      // Read allowed for authenticated users involved in the booking or checking history
+      allow read: if isAuthenticated();
+
+      // Create allowed for participants or system actors
+      allow create: if isAuthenticated()
+        && (
+          request.resource.data.createdBy == request.auth.uid
+          || request.resource.data.createdBy in ['system', 'customer', 'driver']
+          || isAdmin()
+        )
+        && exists(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId))
+        && isBookingParticipantOrOpen(get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data)
+        && isValidBookingEvent(request.resource.data);
+
+      // Immutable audit trail: events cannot be altered or removed by clients
+      allow update, delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 6. driverLocations/{uid}
+    // ===============================================================
+    match /driverLocations/{uid} {
+      // Driver reads own location; customer with active booking with this driver can read GPS
+      allow read: if isOwner(uid)
+        || (
+          isAuthenticated()
+          && ('bookingId' in resource.data)
+          && resource.data.bookingId != null
+          && resource.data.bookingId != ""
+          && exists(/databases/$(database)/documents/bookings/$(resource.data.bookingId))
+          && get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.customerId == request.auth.uid
+        )
+        || isAdmin();
+
+      // Driver updates their live location
+      allow create, update: if isOwner(uid) && isValidDriverLocation(request.resource.data);
+
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // ===============================================================
+    // 7. payments/{paymentId}
+    // ===============================================================
+    match /payments/{paymentId} {
+      // Customer reads their payment logs
+      allow read: if isAuthenticated()
+        && (resource.data.customerId == request.auth.uid || isAdmin());
+
+      // Create: Customer initiates payment record
+      allow create: if isAuthenticated()
+        && (request.resource.data.customerId == request.auth.uid || isAdmin())
+        && isValidPayment(request.resource.data);
+
+      // Update: Customer confirms payment; immutable identifiers
+      allow update: if (
+        isAuthenticated()
+        && resource.data.customerId == request.auth.uid
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.bookingId == resource.data.bookingId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isValidPayment(request.resource.data)
+      ) || (isAdmin() && isValidPayment(request.resource.data));
+
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 8. reviews/{reviewId}
+    // ===============================================================
+    match /reviews/{reviewId} {
+      // Authenticated users can read driver reviews
+      allow read: if isAuthenticated();
+
+      // Customer creates review for their completed/active booking
+      allow create: if isAuthenticated()
+        && request.resource.data.customerId == request.auth.uid
+        && exists(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId))
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customerId == request.auth.uid
+        && isValidReview(request.resource.data);
+
+      // Customer updates their own review
+      allow update: if (
+        isAuthenticated()
+        && resource.data.customerId == request.auth.uid
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.driverId == resource.data.driverId
+        && request.resource.data.bookingId == resource.data.bookingId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isValidReview(request.resource.data)
+      ) || (isAdmin() && isValidReview(request.resource.data));
+
+      allow delete: if (isAuthenticated() && resource.data.customerId == request.auth.uid) || isAdmin();
+    }
+
+    // ===============================================================
+    // 9. notifications/{notificationId}
+    // ===============================================================
+    match /notifications/{notificationId} {
+      // User reads their own notifications
+      allow read: if isAuthenticated()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Senders / system can create notification directed to user
+      allow create: if isAuthenticated()
+        && (request.resource.data.userId == request.auth.uid || isAdmin())
+        && isValidNotification(request.resource.data);
+
+      // User marks notification as read (content fields remain immutable)
+      allow update: if (
+        isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.title == resource.data.title
+        && isValidNotification(request.resource.data)
+      ) || (isAdmin() && isValidNotification(request.resource.data));
+
+      allow delete: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    // ===============================================================
+    // 10. pricingRules/{ruleId}
+    // ===============================================================
+    match /pricingRules/{ruleId} {
+      // Read-only for authenticated users
+      allow read: if isAuthenticated();
+
+      // Write restricted to admin
+      allow create, update: if isAdmin() && isValidPricingRule(request.resource.data);
+
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 11. supportTickets/{ticketId}
+    // ===============================================================
+    match /supportTickets/{ticketId} {
+      // User reads their own support tickets
+      allow read: if isAuthenticated()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // User creates ticket for themselves
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && isValidSupportTicket(request.resource.data);
+
+      // User can update ticket notes or close ticket; Admin can change status
+      allow update: if (
+        isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status in ['open', 'closed']
+        && isValidSupportTicket(request.resource.data)
+      ) || (isAdmin() && isValidSupportTicket(request.resource.data));
+
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 12. driverApplications/{applicationId}
+    // ===============================================================
+    match /driverApplications/{applicationId} {
+      // Driver reads their own application; Admin reads all
+      allow read: if (isAuthenticated() && (request.auth.uid == applicationId || resource == null || resource.data.driverUid == request.auth.uid))
+        || isAdmin();
+
+      // Driver creates/updates their application draft
+      allow create, update: if isAuthenticated()
+        && (request.auth.uid == applicationId || request.resource.data.driverUid == request.auth.uid)
+        // Protect approval fields: Drivers cannot self-approve; only draft/incomplete/submitted/under_review/needs_correction allowed unless admin
+        && (
+          isAdmin() || (
+            request.resource.data.status in ['DRAFT', 'INCOMPLETE', 'SUBMITTED', 'UNDER_REVIEW', 'NEEDS_CORRECTION']
+            && (!('driverApproval' in request.resource.data) || !(request.resource.data.driverApproval in ['approved', 'verified']) || (resource != null && request.resource.data.driverApproval == resource.data.driverApproval))
+            && (!('vehicleApproval' in request.resource.data) || !(request.resource.data.vehicleApproval in ['approved', 'verified']) || (resource != null && request.resource.data.vehicleApproval == resource.data.vehicleApproval))
+            && (!('bankVerification' in request.resource.data) || !(request.resource.data.bankVerification in ['approved', 'verified']) || (resource != null && request.resource.data.bankVerification == resource.data.bankVerification))
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // 13. drivers/{uid} and subcollections
+    // ===============================================================
+    match /drivers/{uid} {
+      allow read: if isOwner(uid)
+        || (isAuthenticated() && resource.data.verificationStatus == 'approved')
+        || isAdmin();
+
+      allow create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /{subcollection}/{docId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // ===============================================================
+    // 14. adminAuditLogs/{logId}
+    // ===============================================================
+    match /adminAuditLogs/{logId} {
+      // Admin reads and creates audit logs
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.adminUid != null);
+      allow update, delete: if false; // Immutable audit log
+    }
+
+  }
+}
