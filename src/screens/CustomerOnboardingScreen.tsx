@@ -25,14 +25,19 @@ import { colors } from "../theme/colors";
 interface Props {
   onFinish: () => void;
   onSkip: () => void;
+  initialSlide?: number;
 }
 
 /**
  * Customer Onboarding 3-Slide Flow in Pure Monochrome
  * Matching Magic Patterns design (Frame ID: eCBVGmD5wiHxzyHxhyUz9C)
  */
-export default function CustomerOnboardingScreen({ onFinish, onSkip }: Props) {
-  const [currentSlide, setCurrentSlide] = useState(0);
+export default function CustomerOnboardingScreen({
+  onFinish,
+  onSkip,
+  initialSlide = 0,
+}: Props) {
+  const [currentSlide, setCurrentSlide] = useState(initialSlide);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleArtType>("small");
   const [helperCount, setHelperCount] = useState<1 | 2>(2);
 

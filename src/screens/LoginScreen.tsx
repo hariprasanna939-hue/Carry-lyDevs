@@ -11,11 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCarryAuth } from "../auth/AuthContext";
 import { CarryLogo } from "../components/CarryLogo";
-import { CarryButton, CarryCheck, CarryField } from "../components/CarryUI";
+import { CarryButton, CarryCheck, CarryField, CarryTopBar } from "../components/CarryUI";
 import ForgotPasswordScreen from "./ForgotPasswordScreen";
 import { colors } from "../theme/colors";
 
 interface Props {
+  onBack?: () => void;
   onRegister: () => void;
   onForgotPassword?: () => void;
   onSuccess?: () => void;
@@ -26,6 +27,7 @@ interface Props {
  * Frame ID: e68mTGmeT1QVodDSsLsAEW
  */
 export default function LoginScreen({
+  onBack,
   onRegister,
   onForgotPassword,
   onSuccess,
@@ -74,6 +76,7 @@ export default function LoginScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {onBack && <CarryTopBar onBack={onBack} />}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
