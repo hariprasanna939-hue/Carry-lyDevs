@@ -96,11 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               approvalStatus: userData.driverVerificationStatus,
             });
           } else {
-            // Check if user is a driver by checking driverApplications collection
+            // Check if user is a driver by checking driverApplications or drivers collection
             let isDriver = false;
             try {
-              const appSnap = await getDoc(doc(db, "driverApplications", user.uid));
-              if (appSnap.exists()) {
+              const [appSnap, driverSnap] = await Promise.all([
+                getDoc(doc(db, "driverApplications", user.uid)),
+                getDoc(doc(db, "drivers", user.uid)),
+              ]);
+              if (appSnap.exists() || driverSnap.exists()) {
                 isDriver = true;
               }
             } catch {
@@ -288,20 +291,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    await setDoc(doc(db, "driverProfiles", firebaseUser.uid), {
+    const driverPayload = {
       userId: firebaseUser.uid,
       fullName: profile.fullName,
       email: profile.email || "",
       phone: profile.phone,
       verificationStatus: "pending",
+      isAvailable: false,
       onlineStatus: false,
       serviceAreas: ["Gandhipuram (Central Hub)", "RS Puram", "Peelamedu & Hopes College"],
       serviceCity: "Coimbatore",
       rating: 5.0,
       totalTrips: 0,
+      completedTrips: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    await setDoc(doc(db, "drivers", firebaseUser.uid), driverPayload, { merge: true });
+    await setDoc(doc(db, "driverProfiles", firebaseUser.uid), driverPayload, { merge: true });
 
     await updateDoc(doc(db, "users", firebaseUser.uid), {
       driverVerificationStatus: "pending",

@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "carry-bd2d7",
+    "firebase deploy --only firestore:rules": "advocatecase-614f9"
+  },
+  "targets": {},
+  "etags": {}
+}

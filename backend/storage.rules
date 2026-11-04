@@ -1,0 +1,51 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin'
+      );
+    }
+
+    // Driver verification documents (licenses, Aadhaar, profile photos, KYC)
+    match /driver-documents/{driverId}/{allPaths=**} {
+      allow read: if isOwner(driverId) || isAdmin();
+      allow write: if isOwner(driverId)
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Vehicle verification documents (RC, insurance, fitness, permit)
+    match /vehicle-documents/{driverId}/{vehicleId}/{allPaths=**} {
+      allow read: if isOwner(driverId) || isAdmin();
+      allow write: if isOwner(driverId)
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // User avatars / profile pictures
+    match /avatars/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow write: if isOwner(uid)
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Booking proof of delivery / item inspection photos
+    match /booking_attachments/{bookingId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}
